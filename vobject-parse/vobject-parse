@@ -54,7 +54,7 @@ for f in sys.argv[ 1: ]:
         print
         
         print "Organizer:", get_email( component.vevent.organizer )
-        print "Attendee:", get_email( component.vevent.attendee )
+#        print "Attendee:", get_email( component.vevent.attendee ) # don't show only one
         print
 #        print "Priority:", component.vevent.priority.value
         print "Summary:", component.vevent.summary.value
