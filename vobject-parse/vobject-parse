@@ -12,6 +12,22 @@ import datetime
 import dateutil.tz
 
 
+def human_readable_when( dt ):
+    s = ""
+    dt = dt.replace( tzinfo = None ) # more accurate would be to add tzinfo to now()
+    
+    diff = dt - datetime.datetime.now()
+    minutes, seconds = divmod( diff.days * 86400 + diff.seconds, 60 )
+    s += human_readable_seconds( minutes * 60 + seconds )
+    
+    if dt > datetime.datetime.now():
+        s += "from now"
+    else:
+        s += "ago"
+    
+    return s
+
+
 def human_readable_seconds( seconds ):
     minutes = seconds / 60
     h = ""
@@ -28,10 +44,14 @@ def human_readable_seconds( seconds ):
     return h
 
 
-def get_datetime( dt ):
+def get_datetime( dt, when = False ):
     localtz = dateutil.tz.tzlocal()
     localtzname = localtz.tzname( dt )
-    return dt.strftime("%A %m/%d/%Y @ %I:%M %p  %z") + " (%s)" % localtzname
+    if when:
+        return dt.strftime("%A %m/%d/%Y @ %I:%M %p %z") + " (%s)  (%s)" % \
+            ( localtzname, human_readable_when( dt ) )
+        
+    return dt.strftime("%A %m/%d/%Y @ %I:%M %p %z") + " (%s)" % localtzname
 
 
 def get_email( obj ):
@@ -46,7 +66,8 @@ for f in sys.argv[ 1: ]:
     fd.close()
     
     for component in vobject.readComponents( s ):
-        print "Start:", get_datetime( component.vevent.dtstart.value )
+        print "Now:  ", get_datetime( datetime.datetime.now() )
+        print "Start:", get_datetime( component.vevent.dtstart.value, when = True )
         print "End:  ", get_datetime( component.vevent.dtend.value )
         duration = component.vevent.dtend.value - component.vevent.dtstart.value
         print "Duration:", human_readable_seconds( duration.seconds )
@@ -57,8 +78,8 @@ for f in sys.argv[ 1: ]:
 #        print "Attendee:", get_email( component.vevent.attendee ) # don't show only one
         print
 #        print "Priority:", component.vevent.priority.value
-        print "Summary:", component.vevent.summary.value
-        print "Description:", component.vevent.description.value
+        print "Summary:", component.vevent.summary.value.encode( "ascii", "ignore" )
+        print "Description:", component.vevent.description.value.encode( "ascii", "ignore" )
         print
         
         if component.vevent.rruleset:
@@ -71,7 +92,10 @@ for f in sys.argv[ 1: ]:
 	print
         
         print "[ COMPONENT: ]"
-        del component.vevent.x_alt_desc
+        try:
+            del component.vevent.x_alt_desc # delete any optional X-Alt-Desc (e.g. HTML)
+        except:
+            pass
         component.prettyPrint()
         print
         print
