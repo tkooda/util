@@ -8,14 +8,14 @@
 ## algorithm:
 ##  - quickly search Maildirs for new email messages
 ##  - scan email messages
-##    - ignore email messages that are To/From/CC/BCC me
+##    - skip email messages that match a To/From/CC/BCC/Resent-From/Resent-To regex
 ##    - display messages that contain a matching regex and
 ##      - prompt to ignore that message in the future
 
 ## config example (~/.config/maildir-search.cfg) :
 ## 
-## { "regex_address_skip": "((asmith|adam.smith)@example.com|adam@gmail.com)",
-##   "regex_message_match": "([^a-z]|^)(adam|smith)([^a-z]|s[^a-z]|$)" }
+##   { "regex_address_skip": "((asmith|adam.smith)@example.com|adam@gmail.com)",
+##     "regex_message_match": "([^a-z]|^)(adam|smith)([^a-z]|s[^a-z]|$)" }
 ## 
 
 ## usage example:
