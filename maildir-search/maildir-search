@@ -1,0 +1,234 @@
+#!/usr/bin/python
+
+## maildir-search
+
+## tkooda : 2013-10-12 : 
+
+
+## algorithm:
+##  - quickly search Maildirs for new email messages
+##  - scan email messages
+##    - ignore email messages that are To/From/CC/BCC me
+##    - display messages that contain a matching regex and
+##      - prompt to ignore that message in the future
+
+## config example (~/.config/maildir-search.cfg) :
+## 
+## { "regex_address_skip": "((asmith|adam.smith)@example.com|adam@gmail.com)",
+##   "regex_message_match": "([^a-z]|^)(adam|smith)([^a-z]|s[^a-z]|$)" }
+## 
+
+## usage example:
+##   maildir-search 0 ~/.Maildir/
+
+
+import os
+import sys
+import re
+import email
+import tempfile
+import time
+import subprocess
+import json
+
+
+def do_debug( level, *args ):
+    try:
+        if level <= int( os.getenv( "DEBUG" ) ):
+            print >>sys.stderr, "DEBUG(%d): %s" % ( level, " : ".join( str(x) for x in args ) )
+    except:
+        pass
+
+
+def read_email( path ):
+    fp = open( path, 'rb' )
+    msg = email.message_from_file( fp )
+    fp.close()
+    return msg
+
+
+def is_my_email( msg ):
+    for header in [ "To", "From", "Cc", "Bcc", "Resent-From", "Resent-To" ]:
+        if not header in msg:
+            continue
+        if pattern_address_skip.search( msg[ header ] ):
+            return True
+    return False
+
+
+## warning: fails when the parts themselves have multiparts, and it really only returns the first text part
+def get_message_body( msg ):
+    maintype = msg.get_content_maintype()
+    if maintype == 'multipart':
+        # return the first part we care about..
+        for preference in [ "text", "html" ]:
+            for part in msg.get_payload():
+                if part.get_content_maintype() == preference:
+                    return part.get_payload()
+    
+    # no (text or html) part we care about could be found, or the body wasn't a multipart, return the whole body..
+    return msg.get_payload()
+
+
+def write_set_to_file( s, f ):
+    fp, fn = tempfile.mkstemp( suffix = ".tmp",
+                               prefix = f + "." )
+    for item in s:
+        os.write( fp, "%s\n" % item )
+    os.close( fp )
+    os.rename( os.path.join( os.path.dirname( f ), fn), f )
+
+
+def create_missing( f ):
+    if os.path.exists( f ):
+        return
+    fp = open( f, "w+" )
+    fp.close()
+
+
+def prompt_answer( f ):
+    ans = False
+    while ans != "y" and ans != "n" and ans != "":
+        ans = raw_input( 'ignore "%s" ? [Y/n] ' % f )
+    if ans == "y" or ans == "":
+        return True
+    return False
+
+
+def get_config():
+    path_config = os.path.join( os.path.expanduser( "~" ), ".config/maildir-search.cfg" )
+    fp = open( path_config, "r" )
+    config = json.load( fp )
+    fp.close()
+    return config
+
+
+
+if __name__ == '__main__':
+    if len( sys.argv ) < 3:
+        print >>sys.stderr, "usage: %s <minutes> <maildirs..>" % os.path.basename( sys.argv[0] )
+        sys.exit( 2 )
+    
+    minutes = int( sys.argv[1] ) # ignore files older than these minutes, 0 to not ignore any
+    
+    config = get_config()
+
+    pattern_address_skip = re.compile( config[ "regex_address_skip" ], re.M | re.I )
+    pattern_message_match = re.compile( config[ "regex_message_match" ], re.M | re.I )
+    
+    if os.getenv( "DEBUG" ):
+        path_dir_cache = "/tmp"
+    else:
+        path_dir_cache = os.path.join( os.path.expanduser( "~" ), ".cache" )
+    
+    path_file_skip = os.path.join( path_dir_cache, "maildir-search_skip.txt" )
+    create_missing( path_file_skip )
+    skip = set( line.strip() for line in open( path_file_skip ) )
+    print "loaded skips:", len( skip )
+    
+    path_file_hit = os.path.join( path_dir_cache, "maildir-search_hit.txt" )
+    create_missing( path_file_hit )
+    hit = set( line.strip() for line in open( path_file_hit ) )
+    print "loaded hits:", len( hit )
+    
+    path_file_miss = os.path.join( path_dir_cache, "maildir-search_miss.txt" )
+    create_missing( path_file_miss )
+    miss = set( line.strip() for line in open( path_file_miss ) )
+    print "loaded misses:", len( miss )
+    
+    hits_tocheck = []
+    
+    new_skip = 0
+    new_hit = 0
+    new_miss = 0
+    ignored_dir = 0
+    ignored_file = 0
+    examined_file = 0
+    
+    ## walk down directory tree ..
+    for path in sys.argv[ 2: ]:
+        print "searching:", path
+        for root, dirs, files in os.walk( path, topdown=True ):
+            try:
+                for d in dirs:
+                    d_path = os.path.join( root, d )
+                    if minutes:
+                        if time.time() - os.path.getmtime( d_path ) > minutes * 60: # ignore directory if older than $minutes
+                            do_debug( 1, "ignoring dir", d_path )
+                            ignored_dir += 1
+                            continue
+                
+                for f in files:
+                    f_path = os.path.join( root, f )
+                
+                    if minutes:
+                        if time.time() - os.path.getmtime( f_path ) > minutes * 60: # ignore file if older than $minutes
+                            ignored_file += 1
+                            continue
+                
+	                f_base = f.split( ":", 1 )[0]
+	                
+	                if f_base in skip:
+	                    do_debug( 1, "old skip", f_base )
+	                    continue
+	                
+	                if f_base in hit:
+	                    do_debug( 1, "old hit", f_base )
+	                    continue
+	                
+	                if f_base in miss:
+	                    do_debug( 1, "old miss", f_base )
+	                    continue
+	                
+	                msg = read_email( f_path )
+	                examined_file += 1
+	                
+	                if is_my_email( msg ):
+	                    ## this email was sent to/from me, skip it ..
+	                    do_debug( 1, "new skip", f_base )
+	                    new_skip += 1
+	                    skip.add( f_base )
+	                elif pattern_message_match.search( str( get_message_body( msg ) ) ):
+	                    ## this email matches my regex ..
+	                    do_debug( 1, "new hit", f_base )
+	                    if f_path not in hits_tocheck:
+	                        hits_tocheck.append( f_path )
+	                else:
+	                    ## this email wasn't sent to/from me, an doesn't match my regex ..
+	                    do_debug( 1, "new miss", f_base )
+	                    new_miss += 1
+	                    miss.add( f_base )
+	    except:
+                pass # silently ignore errors (e.g. file moved)
+    
+    
+    if ignored_dir:
+        print "ignored dirs: %d" % ignored_dir
+    
+    if ignored_file:
+        print "ignored files: %d" % ignored_file
+    
+    if examined_file:
+        print "examined files: %d" % examined_file
+    
+    if new_miss:
+        write_set_to_file( miss, path_file_miss )
+        print "saved misses: %d new, %d total" % ( new_miss, len( miss ) )
+
+    if new_skip:
+        write_set_to_file( skip, path_file_skip )
+        print "saved skips: %d new, %d total" % ( new_skip, len( skip ) )
+    
+    if hits_tocheck:
+        new_hit = 0
+        for path_check in hits_tocheck:
+            subprocess.call( [ "less", "-p", config[ "regex_message_match" ], path_check ] )
+            if prompt_answer( path_check ):
+                base_check = os.path.basename( path_check ).split( ":", 1 )[0]
+                hit.add( base_check )
+                new_hit += 1
+        
+        if new_hit:
+            write_set_to_file( hit, path_file_hit )
+            print "saved hits: %d new, %d total" % ( new_hit, len( hit ) )
+    
