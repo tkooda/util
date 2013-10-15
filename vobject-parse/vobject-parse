@@ -33,7 +33,7 @@ def human_readable_seconds( seconds ):
     h = ""
     
     if minutes / 60 / 24:
-        h += "%d d " % ( minutes / 60 / 24 )
+        h += "%dd " % ( minutes / 60 / 24 )
     
     if ( minutes / 60 ) % 24:
         h += "%dh " % ( ( minutes / 60 ) % 24 )
