@@ -1,0 +1,130 @@
+#!/usr/bin/python
+
+## tkooda : 2007-08-01 : read ips(s) from stdin, print cidr(s) on stdout
+
+import sys
+import re
+
+
+def inet_aton( ipv4_str ):
+    ipv4_tup = ipv4_str.split( "." )
+    ipv4_num = (   int( ipv4_tup[0] ) << 24 ) \
+               + ( int( ipv4_tup[1] ) << 16 ) \
+               + ( int( ipv4_tup[2] ) <<  8 ) \
+               + ( int( ipv4_tup[3] ) )
+    return ipv4_num
+
+
+def inet_ntoa( ipv4_num ):
+    return "%d.%d.%d.%d" \
+           % ( ( ipv4_num & 0xFF000000 ) >> 24,
+               ( ipv4_num & 0x00FF0000 ) >> 16,
+               ( ipv4_num & 0x0000FF00 ) >>  8,
+               ( ipv4_num & 0x000000FF ) )
+
+
+def print_cidrs_in_range( range_low, range_high ):
+    print "range: %s - %s" % ( inet_ntoa( range_low ),
+                               inet_ntoa( range_high ) )
+    if range_low == range_high:
+        print "%s/32" % inet_ntoa( range_low )
+        return
+    # XXX BEGIN
+    #  - search range(32,1) (?) for largest match?
+    #  - find last largest match, print it, recurse with leftovers?
+    #  - warning: random ips won't always begin/end on block boundarys
+    #   + search for r[0] to be on a block boundary start, otherwise
+    #     it's just a /32
+    #   + once a r[0] is a hit on a block boundary start, then search
+    #     for largest mask that hits within the range(r[0],r[1]+1) (inclusive)
+    #     + as soon as a mask miss is found, print (r[0], mask_upper_boundary)
+    #     + ..and recurse with (mask_upper_boundary+1, orig_r[1])
+    
+    for mask_num in [ 32, 31, 30, 29, 28, 27, 26, 25, 24, 23,
+                      22, 21, 20, 19, 18, 17, 16, 15, 14, 13,
+                      12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ]:
+#        print "mask:", mask
+        # for each possible mask, search for first mask "miss"
+        mask = ( 0xFFFFFFFF >> ( 32 - mask_num ) ) << ( 32 - mask_num )
+        block_low = ( range_low & mask )
+        if range_low != block_low: # if range dosn't start on block boundary..
+            print "%s/32" % inet_ntoa( range_low )
+            return print_cidrs_in_range( range_low + 1, range_high )
+        block_high = block_low | ( mask ^ 0xFFFFFFFF )
+        
+        ## tkooda : 2007-08-01 : XXX FIXME: BEGIN HERE
+        
+        if range_low < ipv4_low or range_low > ipv4_high: # if ip not in netmask..
+            mask_hit = mask + 1 # (last mask must have been a hit)
+            print "mask_hit:", mask_hit
+            print "%s/%d" % ( inet_ntoa( range_low ), mask_hit )
+            return print_cidrs_in_range( ipv4_high + 1 , range_high )
+        
+    
+
+
+# main()
+if len(sys.argv) > 3:
+    print >>sys.stderr, "usage: %s [-s] < ips.txt" % sys.argv[ 0 ]
+    sys.exit( 1 )
+
+var_sort = False
+for arg in sys.argv[1:]:
+    if arg.count( "s" ):
+        var_sort = True
+
+pattern_ipv4 = re.compile( "^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$" )
+
+ips = []
+for line in sys.stdin:
+    result = re.match( pattern_ipv4, line )
+    if not result:
+        print >>sys.stderr, "WARNING: ignoring invalid line: " + line ,
+        continue
+    ipv4_str = result.group( 0 )
+    ipv4_num = inet_aton( ipv4_str )
+    if not ipv4_num in ips:
+        ips.append( ipv4_num )
+
+ips.sort()
+
+#print ips
+
+ranges = []
+ip_begin = 0
+ip_end = 0
+for ip in ips:
+#    print "ip:", ip
+    if not ip_begin:
+#        print "init_begin:", ip
+        ip_begin = ip
+        continue
+    if not ip_end:
+#        print "init_end:", ip
+        ip_end = ip
+        continue
+    if ip == ip_end + 1:
+#        print "cont:", ip
+        ip_end = ip
+        continue
+#    print "end:", ip
+#    print
+    ranges.append( ( ip_begin, ip_end ) )
+    ip_end = 0
+    ip_begin = ip
+if ip_begin and not ip_end:
+#    print "ip_catch_end:", ip
+    ranges.append( ( ip_begin, ip_begin ) )
+elif ip_begin and ip_end:
+    ranges.append( ( ip_begin, ip_end ) )
+
+#print "ip_begin:", ip_begin
+#print "ip_end:", ip_end
+
+#print
+#print ranges
+
+for r in ranges:
+#    print r
+    print_cidrs_in_range( r[0], r[1] )
+
