@@ -1,0 +1,70 @@
+#!/bin/bash
+
+## ds-shaper : v0.1a
+
+## tkooda : 2007-03-13 : very simple shaper script
+
+IF_UP="`ip route |awk '/^default/{print $(NF)}'`"
+IF_DOWN="`ip link show |awk '/^[0-9].*UP/{print $2}' |grep -v "^\(lo\|${IF_UP}\):" |tr -d ':' |head -n1`" # first non lo/upstream iface
+RATE_UP="1Mbit"
+RATE_DOWN="1Mbit"
+BURST_UP="1.5Mbit"
+BURST_DOWN="1.5Mbit"
+DEBUG="0"
+SFQ="1"
+
+[ -f /etc/default/ds-shaper ] && . /etc/default/ds-shaper
+
+if [ "${DEBUG}" == "1" ]; then
+  function tc { echo "# tc $@"; /sbin/tc $@; } # DEBUG
+fi
+
+function interface_stop {
+  [ -n "${1}" ] || return
+  iface="${1}"
+  tc qdisc del dev "${iface}" root 2>/dev/null
+}
+
+function interface_start {
+  [ $# -eq 3 -a -n "${1}" -a -n "${2}" -a -n "${3}" ] || return
+  iface="${1}"
+  rate="${2}"
+  burst="${3}"
+  if [ "${SFQ}" == "0" ]; then
+    # simple tbf for rate limit, no sfq..
+    tc qdisc add dev "${iface}" root tbf \
+      rate "${rate}" burst "${burst}" latency 50ms
+  else
+    # single htb with rate limit, with sfq leaf..
+    tc qdisc add dev "${iface}" root handle 1:0 htb default 1
+    tc class add dev "${iface}" parent 1:0 classid 1:1 htb \
+      rate "${rate}" burst "${burst}"
+    tc qdisc add dev "${iface}" parent 1:1 sfq perturb 15
+  fi
+}
+
+function interface_stats {
+  [ -n "${1}" ] || return
+  iface="${1}"
+  echo "# dev: ${iface}"
+  tc -s qdisc show dev "${iface}"
+  tc -s class show dev "${iface}"
+}
+
+case "$1" in
+  stop|start|restart)
+    interface_stop "${IF_UP}"
+    interface_stop "${IF_DOWN}"
+    [ "$1" == "stop" ] && exit
+    interface_start "${IF_UP}"   "${RATE_UP}"   "${BURST_UP}"
+    interface_start "${IF_DOWN}" "${RATE_DOWN}" "${BURST_DOWN}"
+    ;;
+  stats)
+    interface_stats "${IF_UP}"
+    interface_stats "${IF_DOWN}"
+    ;;
+  *)
+    echo "usage: ${0} [start|restart|stop|stats]"
+    ;;
+esac
+
