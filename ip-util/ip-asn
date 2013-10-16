@@ -1,0 +1,62 @@
+#!/usr/bin/python
+
+## ip-asn : v0.2
+
+## http://devsec.org/software/misc/ip-asn 
+
+## ip-asn is a simple command to lookup an IPv4 address in the
+## routeviews.org dns lists to determine the ASN associated with that IP.
+##
+## I use it like this:
+##
+##   ./ip-asn 127.0.0.2
+##
+## - Thor Kooda
+##   2006-09-20
+
+
+# invert IPv4, syncrnous dnstxt lookup
+
+import os
+import sys
+import socket
+import struct
+import DNS
+
+def bail( str, err = 1 ):
+    sys.stderr.write( str )
+    sys.exit( err )
+
+def invert_ipv4( ipv4_str ):
+    ip = struct.unpack( "BBBB", socket.inet_aton( ipv4_str ) )
+    return "%d.%d.%d.%d" % ( ip[3], ip[2], ip[1], ip[0] )
+
+if len( sys.argv ) != 2:
+    bail( "Usage: %s <ip>\n" % sys.argv[ 0 ] )
+
+ipv4_str = sys.argv[ 1 ]
+
+try:
+    socket.inet_aton( ipv4_str )
+except:
+    bail( "error: invalid ip: %s\n" % ipv4_str )
+
+ipv4_istr = invert_ipv4( ipv4_str )
+
+DNS.ParseResolvConf()
+
+iad = os.environ.get( "IP_ASN_DNS" )
+if not iad:
+    iad = "asn.routeviews.org."
+
+try:
+    r = DNS.DnsRequest( name = ipv4_istr + "." + iad , qtype = "TXT" )
+except "Timeout":
+    bail( "error: timeout\n" )
+
+a = r.req()
+
+for i in a.answers:
+    if i['typename'] == "TXT":
+        print ipv4_str, ":", ' '.join( i['data'] )
+

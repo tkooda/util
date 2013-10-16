@@ -1,0 +1,72 @@
+#!/usr/bin/python
+
+## bl-check-ip : v0.2
+
+## http://devsec.org/software/misc/bl-check-ip
+
+## bl-check-ip is a simple command to asyncronously lookup an IPv4
+## address in one or more DNS blacklists.
+##
+## I use it like this:
+##
+##   BL_CHECK_IP_BLS="bl.spamcop.net. sbl-xbl.spamhaus.org." \
+##     ./bl-check-ip 127.0.0.2
+##
+## - Thor Kooda
+##   2006-08-03
+
+import os
+import sys
+import socket
+import struct
+import adns, ADNS
+
+def bail( str, err = 1 ):
+    sys.stderr.write( str )
+    sys.exit( err )
+
+def callback_A( answer, qname, rr, flags, extra ):
+    if answer[ 0 ] in ( adns.status.ok, adns.status.nodata,
+                        adns.status.nxdomain ):
+        results_A[ extra ] = answer[ 3 ]
+
+def submit_A( qname, bl ):
+    results_A[ bl ] = ()
+    qe.submit( qname + "." + bl, adns.rr.A, callback=callback_A, extra=bl )
+
+def invert_ipv4( ipv4_str ):
+    ip = struct.unpack( "BBBB", socket.inet_aton( ipv4_str ) )
+    return "%d.%d.%d.%d" % ( ip[3], ip[2], ip[1], ip[0] )
+
+if len( sys.argv ) != 2:
+    bail( "Usage: %s <ip>\n" % sys.argv[ 0 ] )
+
+ipv4_str = sys.argv[ 1 ]
+
+bls_env = os.environ.get( "BL_CHECK_IP_BLS" )
+if bls_env:
+    bls = bls_env.split()
+else:
+    bls = ( "sbl-xbl.spamhaus.org.",
+            "bl.spamcop.net." )
+
+try:
+    socket.inet_aton( ipv4_str )
+except:
+    bail( "error: invalid ip: %s\n" % ipv4_str )
+
+ipv4_istr = invert_ipv4( ipv4_str )
+
+results_A = {}
+
+qe = ADNS.QueryEngine()
+
+for bl in bls:
+    submit_A( ipv4_istr, bl )
+
+qe.run()
+qe.finish()
+
+for dom, ips in results_A.items():
+    print dom, ":", ' '.join( ips )
+

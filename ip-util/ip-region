@@ -1,0 +1,66 @@
+#!/usr/bin/python
+
+## ip-region : v0.1
+
+## http://devsec.org/software/misc/ip-region
+
+## ip-region is a simple command to lookup an IPv4 address in the
+## blackholes.us dns lists to determine the country of origin.
+##
+## I use it like this:
+##
+##   ./ip-region 127.0.0.2
+##
+## - Thor Kooda
+##   2006-08-09
+
+
+# invert IPv4, syncrnous dnstxt lookup
+
+import os
+import sys
+import socket
+import struct
+import DNS
+
+def bail( str, err = 1 ):
+    sys.stderr.write( str )
+    sys.exit( err )
+
+def invert_ipv4( ipv4_str ):
+    ip = struct.unpack( "BBBB", socket.inet_aton( ipv4_str ) )
+    return "%d.%d.%d.%d" % ( ip[3], ip[2], ip[1], ip[0] )
+
+if len( sys.argv ) != 2:
+    bail( "Usage: %s <ip>\n" % sys.argv[ 0 ] )
+
+ipv4_str = sys.argv[ 1 ]
+
+try:
+    socket.inet_aton( ipv4_str )
+except:
+    bail( "error: invalid ip: %s\n" % ipv4_str )
+
+ipv4_istr = invert_ipv4( ipv4_str )
+
+DNS.ParseResolvConf()
+
+ird = os.environ.get( "IP_REGION_DNS" )
+if not ird:
+    ird = "countries.blackholes.us."
+
+timeout = os.environ.get( "IP_REGION_TIMEOUT" )
+if not timeout:
+    timeout = "30"
+
+try:
+    r = DNS.DnsRequest( name = ipv4_istr + "." + ird , qtype = "TXT",
+                        timeout = int(timeout) )
+    a = r.req()
+except:
+    bail( "error: DNSError: %s\n" % ipv4_str )
+
+for i in a.answers:
+    if i['typename'] == "TXT":
+        print ipv4_str, ":", ' '.join( i['data'] )
+
