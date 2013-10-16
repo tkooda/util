@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+
+## tkooda : 2005-01-27 : domains-from-rfc822 : v0.0.1
+## http://devsec.org/software/misc/domains-from-rfc822
+
+## USAGE:
+##  domains-from-rfc822 < rfc822.msg 2>/dev/null > domains.txt
+##
+## ABOUT:
+##  - print (via STDOUT) the valid (via regex, no DNS lookup) domain
+##    names from an rfc822 email message body (via STDIN)
+##
+## NOTES:
+##  - will print "bar.com" instead of "http://foo.bar.com"
+##  - will print "bar.co.uk" instead of "foo.bar.co.uk"
+##  - will recurse through multipart/nested mime parts/attachments
+##  - for usage with a rhsbl
+##  - Mail::Message->decoded() might print warnings to STDERR on invalid types
+
+use Mail::Message;
+use URI::Find::Schemeless;
+use URI::Split qw(uri_split);
+use Mail::SpamAssassin::Util::RegistrarBoundaries qw( is_domain_valid, trim_domain );
+use strict;
+
+my $msg = Mail::Message->read( \*STDIN );
+
+handle_body( $msg );
+exit;
+
+sub handle_body {
+    my ( $msg ) = @_;
+    if ( ! $msg->isMultipart ) {
+	handle_part( $msg ) if ( $msg->decoded->type =~ m/^(text|message)/i );
+	return;
+    }
+    foreach my $part ( $msg->decoded->parts ) {
+	handle_body( $part ); # recurse for nested attachment parts
+    }
+}
+
+sub handle_part {
+    my ( $msg ) = @_;
+    my @uris;
+    my $finder = URI::Find::Schemeless->new( sub { push @uris => $_[0] } );
+    $finder->find( \$msg->decoded );
+    foreach my $uri ( @uris ) {
+	my ($scheme, $auth, $path, $query, $frag) = uri_split( $uri );
+	if ( $scheme =~ m/^(http|ftp)/i ) {
+	    # use SpamAssassin to only print valid zones (and no IPs)
+	    my $domain = Mail::SpamAssassin::Util::RegistrarBoundaries::trim_domain( $auth );
+	    print "$domain\n" if ( Mail::SpamAssassin::Util::RegistrarBoundaries::is_domain_valid( $domain ) );
+	}
+    }
+}
