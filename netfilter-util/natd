@@ -1,0 +1,27 @@
+#!/bin/bash
+
+## tkooda : 2010-08-02 : tcp port forwarding + NAT helper script
+##  warning: ignores routing table for chosing outbound interface?
+
+if [ $# -ne 5 ]; then
+  echo "usage: ${0}  <listen IP> <listen port>  <source IP>  <destination IP> <destination port>"
+  exit 1
+fi
+
+lip="${1}"
+lport="${2}"
+
+sip="${3}"
+
+dip="${4}"
+dport="${5}"
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+iptables -t nat -I PREROUTING  -p tcp -d "${lip}" --dport "${lport}" -j DNAT --to-destination "${dip}:${dport}"
+
+iptables -t filter -I FORWARD  -p tcp -d "${dip}" --dport "${dport}" -j ACCEPT
+
+iptables -t filter -I INPUT    -p tcp -d "${lip}" --dport "${lport}" -j ACCEPT # allow from all clients
+
+iptables -t nat -I POSTROUTING -p tcp -d "${dip}" --dport "${dport}" -j SNAT --to-source "${sip}"

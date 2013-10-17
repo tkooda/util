@@ -1,0 +1,25 @@
+#!/bin/bash
+
+## tkooda : 2009-12-04 : simple netfilter forwarding script
+
+# usage:
+#  ./ip-forward eth0 10.176.1.16 5900 192.168.0.33 eth0 192.168.38.116 5901
+# (for when eth0 has 10.176.1.16 and 192.168.0.33 bound to it; the user can connect to 10.176.1.16:5900 and it'll be forwarded to 192.168.38.116:5901 as if the connection came from 192.168.0.33)
+
+[ $# -eq 7 ] || exit
+
+eth_in=$1 # in iface
+ip1=$2 # bind ip
+port1=$3 # bind port
+ip2=$4 # ip to appear to come from
+eth_out=$5 # out iface
+ip3=$6 # dest ip
+port3=$7 # dest port
+
+echo "listening on ${eth_in}( ${ip1}:${port1} ) to forward from ${ip2} to ${eth_out}( ${ip3}:${port3} )"
+
+iptables -t nat -I PREROUTING  -i "${eth_in}"  -d "${ip1}" -p tcp --dport "${port1}" -j DNAT --to "${ip3}:${port3}"
+iptables -t filter -I FORWARD  -i "${eth_in}"  -d "${ip3}" -p tcp --dport "${port3}" -j ACCEPT
+iptables -t nat -I POSTROUTING -o "${eth_out}" -d "${ip3}" -p tcp --dport "${port3}" -j SNAT --to "${ip2}"
+echo 1 > /proc/sys/net/ipv4/ip_forward
+

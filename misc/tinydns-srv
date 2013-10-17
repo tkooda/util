@@ -1,0 +1,25 @@
+#!/usr/bin/python
+
+## tkooda : 2010-10-08 : print SRV DNS record in tinydns-data format
+
+import os
+import sys
+
+if len(sys.argv) != 6:
+	sys.stderr.write( "usage: %s <service> <priority> <weight> <port> <target>\ne.g.: %s _xmpp-client._tcp.example.com 0 100 5222 xmpp.example.com\n" % ( os.path.basename( sys.argv[0] ), os.path.basename( sys.argv[0] ) ) )
+	sys.exit( 1 )
+
+target = ""
+for i in sys.argv[ 5 ].split("."):
+	target += "\\%03o%s" % ( len(i) , i )
+
+print ":%s:33:\\%03o\\%03o\\%03o\\%03o\\%03o\\%03o%s\\000" \
+	  % ( sys.argv[ 1 ],
+		  int( sys.argv[ 2 ] ) >> 8 ,
+		  int( sys.argv[ 2 ] ) & 0xFF ,
+		  int( sys.argv[ 3 ] ) >> 8 ,
+		  int( sys.argv[ 3 ] ) & 0xFF ,
+		  int( sys.argv[ 4 ] ) >> 8 ,
+		  int( sys.argv[ 4 ] ) & 0xFF ,
+		  target )
+

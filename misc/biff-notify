@@ -1,0 +1,203 @@
+#!/usr/bin/python
+
+## biff-notify : v0.1
+
+## http://devsec.org/software/misc/biff-notify
+
+## about:
+##  - monitor a list of Maildirs for new messages, and tell
+##    the Gnome notification-daemon to pop up a message when
+##    a new message arrives
+##
+## example usage:
+##  biff-notify ~/.Maildir/
+##
+## changelog:
+##  - 2009-03-12 : v0.1 : initial release
+##  - 2009-07-24 : v0.2 :
+##    - use external `notify-msg` for notifications
+##    - support regex for bell (via env)
+##
+## - Thor Kooda
+##   2009-03-12
+
+
+import os
+import re
+import sys
+import time
+from pyinotify import WatchManager, Notifier, ThreadedNotifier, EventsCodes, ProcessEvent, IN_MOVED_TO
+from rfc822 import Message
+import pynotify
+import subprocess
+
+
+try:
+    DEBUG = int( os.getenv( "DEBUG" ) )
+except:
+    DEBUG = 0
+
+
+def do_debug( level, s ):
+    if level <= DEBUG:
+        print >>sys.stderr, "DEBUG: %s" % s
+
+
+def bail( s, err = 1 ):
+    print >>sys.stderr, s
+    sys.exit( err )
+    
+    
+class PTmp( ProcessEvent ):
+    def process_IN_MOVED_TO( self, event ):
+        global count
+        global icons_from
+        global icons_subject
+        if event.dir != False:
+            return
+        
+        ## open ..
+        path_msg = os.path.join( event.path, event.name )
+        try:
+            fp = open( path_msg, "r" )
+        except:
+            print >>sys.stderr, "error: could not open: '%s'" % path_msg
+            return
+        
+        ## parse ..
+        m = Message(fp)
+        use_bell = False
+        
+        str_date = time.strftime( "%I:%M %p", m.getdate( "Date" ) )
+        
+        str_from_name, str_from_address = m.getaddr( "From" )
+        if str_from_name == "":
+            str_from_name = str_from_address
+        do_debug( 3, "From: %s" % str_from_address )
+        
+        if env_biff_notify_regex_bell_from and re.match( env_biff_notify_regex_bell_from, str_from_address, re.I ):
+            do_debug( 4, "MATCHED: From: %s" % str_from_address )
+            use_bell = True
+        
+        str_to_names = ""
+        list = m.getaddrlist( "To" )
+        for realname, mailaddr in list:
+            if str_to_names != "":
+                str_to_names += ", "
+            if realname != "":
+                str_to_names += realname
+            else:
+                str_to_names += mailaddr
+            do_debug( 3, "To: %s" % mailaddr )
+            if env_biff_notify_regex_bell_to and re.match( env_biff_notify_regex_bell_to, mailaddr, re.I ):
+                do_debug( 4, "MATCHED: To: %s" % mailaddr )
+                use_bell = True
+
+        list = m.getaddrlist( "CC" )
+        for realname, mailaddr in list:
+            do_debug( 3, "CC: %s" % mailaddr )
+            if env_biff_notify_regex_bell_cc and re.match( env_biff_notify_regex_bell_cc, mailaddr, re.I ):
+                do_debug( 4, "MATCHED: CC: %s" % mailaddr )
+                use_bell = True
+        
+        str_subject = m.getheader( "Subject" ) or ""
+        fp.close()
+        
+        ## print ..
+        str_dir = "[ %s ]" % os.path.basename( os.path.dirname( event.path ) )
+        if len(sys.argv) > 2:
+            print str_dir
+        print "From:", str_from_name
+        print "To:", str_to_names
+        print "Subject:", str_subject
+        print
+        
+        count += 1
+        title = "%s @ %s (#%d)" % ( str_from_name, str_date, count )
+        body = ""
+        if len(sys.argv) > 2:
+            body += "%s\n" % str_dir
+        body += "To: %s\nSubject: %s" % ( str_to_names, str_subject )
+        icon = "mail-message-new"
+        
+        ## possibly change icon ..
+        for r in icons_subject:
+            if re.match( r, str_subject, re.I ):
+                icon = icons_subject[ r ]
+        for r in icons_from:
+            if re.match( r, str_from_address, re.I ):
+                icon = icons_from[ r ]
+        
+        ## notify ..
+        e = os.environ
+        if use_bell:
+            do_debug( 5, "using_bell" )
+            e.update( { "NOTIFY_BELL_PATH": "/dev/shm/tmp.notify.bell" } )
+        else:
+            try:
+                del e[ "NOTIFY_BELL_PATH" ]
+            except:
+                pass
+        subprocess.Popen( [ "notify-msg", title, body, icon ], env=e )
+
+
+env_biff_notify_regex_bell_from = os.environ.get( "BIFF_NOTIFY_REGEX_BELL_FROM" )
+do_debug( 1, "env_biff_notify_regex_bell_from: %s" % env_biff_notify_regex_bell_from )
+
+env_biff_notify_regex_bell_to = os.environ.get( "BIFF_NOTIFY_REGEX_BELL_TO" )
+do_debug( 1, "env_biff_notify_regex_bell_to: %s" % env_biff_notify_regex_bell_to )
+
+env_biff_notify_regex_bell_cc = os.environ.get( "BIFF_NOTIFY_REGEX_BELL_CC" )
+do_debug( 1, "env_biff_notify_regex_bell_cc: %s" % env_biff_notify_regex_bell_cc )
+
+
+icons_subject = {
+    "^fwd:": "mail-forward",
+    "^re:": "mail-reply-sender",
+    ".*Ticket": "edit-paste",
+    }
+
+icons_from = {
+    "user1@example.com": "media-record",
+    "user2@other.com": "dialog-warning",
+    }
+
+# other possibly decent icons:
+# "mail-forward"
+# "mail-mark-not-junk"
+# "mail-message-new"
+# "mail-reply-all"
+# "mail-reply-sender"
+# "mail-send-receive"
+# "contact-new"
+# "bookmark-new"
+# "document-new"
+# "edit-copy"
+ 
+count = 0
+
+if __name__ == '__main__':
+    if len( sys.argv ) < 2:
+        bail( "usage: %s <maildir|mbox> [maildir|mbox ...]" % sys.argv[0], 2 )
+    
+    ## init ..
+    wm = WatchManager()
+    notifier = Notifier( wm, PTmp() )
+    
+    for arg in sys.argv[ 1: ]:
+        new = os.path.join( arg, "new" )
+        if not os.path.isdir( new ):
+            continue
+        wdd = wm.add_watch( new, IN_MOVED_TO, rec=True )
+        print >>sys.stderr, "watching: %s" % arg
+    
+    ## loop ..
+    while True:
+        try:
+            notifier.process_events()
+            if notifier.check_events():
+                notifier.read_events()
+        except KeyboardInterrupt:
+            notifier.stop()
+            break
+

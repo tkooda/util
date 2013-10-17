@@ -1,0 +1,84 @@
+#!/bin/bash
+
+## tkooda : 2007-10-08 : simple firewall with port knocking
+
+WHITELIST_IP_FROM="1.2.3.4/16 8.8.8.8/24"
+WHITELIST_PORT_TO="53 80 113 3690 5000 6665:6669 50000:60000"
+BLACKIST_IP_FROM=""
+BLACKLIST_PORT_TO="135:139 445 1433 1434 2967 5900 15951 26245"
+LOG_FLOOD="10/s"
+LOG_LEVEL="info"
+
+## setup defaults..
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+[ "${1}" == "stop" ] && exit
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -m state --state INVALID -j DROP
+
+## whitelist src ips..
+for src in ${WHITELIST_IP_FROM}; do
+  iptables -A INPUT -p tcp -s "${src}" -j ACCEPT
+done
+
+## whiltelist dest ports..
+for dst in ${WHITELIST_PORT_TO}; do
+  iptables -A INPUT -p tcp --dport "${dst}" -j ACCEPT
+  iptables -A INPUT -p udp --dport "${dst}" -j ACCEPT
+done
+
+## allow some icmp..
+for icmp in echo-request echo-reply time-exceed \
+    destination-unreachable parameter-problem ; do
+  iptables -A INPUT -p icmp --icmp-type "${icmp}" -j ACCEPT
+done
+
+## blacklist src ips..
+for src in ${BLACKLIST_IP_FROM}; do
+  iptables -A INPUT -p tcp -s "${src}" -j DROP
+done
+
+## whiltelist dest ports..
+for dst in ${BLACKLIST_PORT_TO}; do
+  iptables -A INPUT -p tcp --dport "${dst}" -j DROP
+  iptables -A INPUT -p udp --dport "${dst}" -j DROP
+done
+
+## portknock ssh..
+iptables -N INTO-PHASE2
+iptables -A INTO-PHASE2 -m recent --name PHASE1 --remove
+iptables -A INTO-PHASE2 -m recent --name PHASE2 --set
+#iptables -A INTO-PHASE2 -j LOG --log-prefix "INTO PHASE2: "
+
+iptables -N INTO-PHASE3
+iptables -A INTO-PHASE3 -m recent --name PHASE2 --remove
+iptables -A INTO-PHASE3 -m recent --name PHASE3 --set
+#iptables -A INTO-PHASE3 -j LOG --log-prefix "INTO PHASE3: "
+
+iptables -N INTO-PHASE4
+iptables -A INTO-PHASE4 -m recent --name PHASE3 --remove
+iptables -A INTO-PHASE4 -m recent --name PHASE4 --set
+iptables -A INTO-PHASE4 -j LOG --log-prefix "INTO PHASE4: "
+
+iptables -A INPUT -m recent --update --name PHASE1
+
+iptables -A INPUT -p tcp --dport 10 -m recent --set --name PHASE1
+iptables -A INPUT -p tcp --dport 20 -m recent --rcheck --name PHASE1 -j INTO-PHASE2
+iptables -A INPUT -p tcp --dport 30 -m recent --rcheck --name PHASE2 -j INTO-PHASE3
+iptables -A INPUT -p tcp --dport 40 -m recent --rcheck --name PHASE3 -j INTO-PHASE4
+
+iptables -A INPUT -p tcp --dport 22 -m recent --rcheck --seconds 300 --name PHASE4 -j ACCEPT
+## end portknock
+
+## log..
+for prot in tcp udp icmp; do
+  iptables -A INPUT -p "${prot}" -m limit --limit "${LOG_FLOOD}" \
+      -j LOG --log-level "${LOG_LEVEL}" --log-prefix "rejected_${prot} "
+done
+
+## change default policy to reject/drop..
+iptables -A INPUT -p tcp -j REJECT --reject-with tcp-reset
+iptables -A INPUT ! -p tcp -j REJECT --reject-with icmp-port-unreachable
+iptables -P INPUT DROP

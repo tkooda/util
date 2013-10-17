@@ -1,0 +1,99 @@
+#!/usr/bin/perl -w
+
+## dkim-sign : v0.2
+
+## http://devsec.org/software/misc/dkim-sign
+
+## about:
+##  - add a dkim signature to an rfc822 message on stdin
+##  - djb-style exec-chain any args and pipe output to them
+##
+## example usages:
+##  dkim-sign < rfc822_message.txt
+##  dkim-sign sendmail < rfc822_message.txt
+##
+## setup:
+##  mkdir -m700 -p ~/.dkim/example.com/default/
+##  cd ~/.dkim/example.com/default/
+##  openssl genrsa -out private.key 1024
+##  openssl rsa -in private.key -out public.key -pubout -outform PEM
+##
+## changelog:
+##  - 2008-10-28 : v0.1 : initial release
+##  - 2009-03-06 : v0.2 : parse domain (and selector) from message instead of requiring args
+##
+## bugs (sorta; since the message shouldn't already have a dkim signature):
+##  - will not recognise and replace any pre-existing dkim sig in headers
+##
+## - Thor Kooda
+##   2009-03-06
+
+
+use Text::Header;
+use Email::Address;
+use Mail::DKIM::Signer;
+
+## read an rfc822 email message into the buffer ..
+my @buf = ();
+while (<STDIN>) {
+	# remove local line terminators
+	chomp;
+	s/\015$//;
+	# save line in array
+	push ( @buf, "$_" );
+}
+
+## parse headers ..
+my %headers = unheader( @buf );
+
+## parse user + domain from "From:" header ...
+my @addresses = Email::Address->parse( $headers{from} );
+
+## find valid private.key ..   (FIXME: this algorithm is ugly)
+my $domain = "";
+my $selector = "";
+my $path_key = "";
+my @selectors = ();
+push( @selectors, $ENV{DKIM_SIGN_SELECTOR} ) if exists $ENV{DKIM_SIGN_SELECTOR};
+push( @selectors, $addresses[0]->user );
+push( @selectors, "default" );
+foreach my $dom ( $addresses[0]->host, "default" ) {
+    foreach my $sel ( @selectors ) {
+        if ( ! -r $path_key ) {
+            $domain = $dom;
+            $selector = $sel;
+            $path_key = "$ENV{HOME}/.dkim/$domain/$selector/private.key";
+        }
+    }
+}
+$domain = $addresses[0]->host if $domain eq "default";
+$selector = $addresses[0]->user if $selector eq "default";
+print STDERR "error: could not find private.key\n" unless ( -r $path_key );
+exit( 1 ) unless ( -r $path_key );
+
+## create a dkim signature object ..
+my $dkim = Mail::DKIM::Signer->new(
+	Algorithm => "rsa-sha1",
+	Method => "relaxed",
+	Headers => "date:from:to:subject",
+	Domain => $domain,
+	Selector => $selector,
+	KeyFile => $path_key );
+
+## build dkim signature from message buffer ..
+foreach (@buf) {
+	# use SMTP line terminators
+	$dkim->PRINT( "$_\015\012" );
+}
+$dkim->CLOSE;
+
+## print email with dkim signature ..
+my $dkim_printed = 0;
+foreach $line ( @buf ) {
+	if ( ( $dkim_printed == 0 ) && ( $line =~ m/^(Date|From|To|Subject|CC|BCC|Message-ID)/i ) ) {
+		print $dkim->signature->as_string . "\015\012";
+		$dkim_printed = 1;
+	}
+	print $line . "\015\012";
+}
+

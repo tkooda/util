@@ -1,0 +1,43 @@
+#!/bin/bash
+
+## tkooda : 2006-10-11 : v0.01 : dnscache-motion 
+## tkooda : 2009-03-03 : v0.02 : change interface to require args
+
+## tkooda : 2006-10-11 : from: http://cr.yp.to/djbdns/cachesize.html
+## 
+##  Measuring the effects of the cache size
+##  dnscache frequently logs a stats line in /service/dnscache/log/main/current. The second number after stats on the line is the cache motion. The cache motion is the number of bytes of cache entries that have been written to the cache since dnscache started.
+##  
+##  Look at this number now, and again in 24 hours; subtract to see the 1-day cache motion. (Or extrapolate, using ps to see how long the dnscache process has been running.) Now divide the cache size by the 1-day cache motion:
+##  
+##      * 0.01: The cache cycle time is roughly 15 minutes. Almost all DNS records have larger TTL (``time to live'') settings; they could be cached longer if the cache were larger.
+##      * 0.1: The cache cycle time is roughly 2 hours. This is above the AOL address TTL, but it's below the TTL of most records.
+##      * 1: The cache cycle time is roughly 1 day. There's still some benefit to a larger cache.
+##      * 10: The cache cycle time is over a week. This leaves ample room for growth; the maximum common TTL is 3 days. dnscache won't save records for more than a week in any case. 
+##  
+##  Another way to measure cache effectiveness is to divide the cache motion by the query count, which is the first number after stats. When the cache is very large, this ratio will be at its minimum possible value, measuring unavoidable DNS traffic; when the cache is too small, the ratio is too high. 
+##  
+
+## usage: `dnscache-motion /service/dnscache*`
+
+function bail { echo -e "${1}"; exit 1; }
+
+[ $# -ge 1 ] || bail "usage: ${0##*/} /service/dnscache*"
+
+for DNSCACHE in ${@}; do
+  [ -d "${DNSCACHE}" ] || continue
+  DAYS="`svstat ${DNSCACHE} |awk '{print $5 / 60 / 60 / 24 }'`"
+  QUERIES="`tail -1000 ${DNSCACHE}/log/main/current 2>/dev/null |grep ' stats '|tail -1 |awk '{print $3}'`"
+  MOTION="`tail -1000 ${DNSCACHE}/log/main/current 2>/dev/null |grep ' stats '|tail -1 |awk '{print $4}'`"
+  CACHESIZE="`cat ${DNSCACHE}/env/CACHESIZE 2>/dev/null`"
+  DATALIMIT="`cat ${DNSCACHE}/env/DATALIMIT 2>/dev/null`"
+  
+  echo "DNSCACHE: ${DNSCACHE}"
+  echo "CACHESIZE: ${CACHESIZE}"
+  echo "DATALIMIT: ${DATALIMIT}"
+  printf "Period: %.2f days\n" ${DAYS}
+  printf "Queries: ${QUERIES} ( %.2f / day )\n" `echo ${QUERIES} / ${DAYS} |bc -l 2>/dev/null`
+  printf "Motion-size: %.2f MB (since start)\n" `echo ${MOTION} / 1024 / 1024 |bc -l 2>/dev/null`
+  printf "Motion-cycle: %.2f days\n" `echo ${CACHESIZE} / \( ${MOTION} / ${DAYS} \) |bc -l 2>/dev/null`
+  echo
+done

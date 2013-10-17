@@ -1,0 +1,22 @@
+#!/bin/bash
+
+## tkooda : 2010-09-13 : add transparent tiled text watermark to images
+
+if [ $# -lt 2 ]; then
+  echo "usage: ${0##*/} <watermark text> <images..>"
+  exit 2
+fi
+
+text="${1}"
+shift
+
+for f in "${@}" ; do
+  d="${f%.*}__wmark_${text// /_}.${f##*.}"
+#  convert -size 140x80 xc:none -fill grey \
+  convert -size 140x80 xc:none -fill '#80808080' \
+          -gravity NorthWest -draw "text 10,10 '${text}'" \
+          -gravity SouthEast -draw "text 5,15 '${text}'" \
+          miff:- \
+    | composite -tile - "${f}" "${d}" \
+    && echo "watermarked: ${d}"
+done

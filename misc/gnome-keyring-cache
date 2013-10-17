@@ -1,0 +1,30 @@
+#!/bin/bash
+
+## tkooda : 2009-02-18 : simple cache of `gnome-keyring-query` data in /dev/shm/* (because querying gnome-keyring can be slow sometimes??)
+
+function bail { echo -e "$@"; exit 1; }
+
+[ $# -eq 4 ] || bail "usage: ${0##*/} <get> <protocol> <user> <domain>"
+
+gs="${1}"
+prot="${2}"
+usr="${3}"
+dom="${4}"
+
+umask 077
+
+d="/dev/shm/gnome-keyring-cache.${USER}"
+[ -d "${d}" ] || mkdir -m700 -p "${d}" || bail "ERROR: could not create dir: ${d}"
+chmod 700 "${d}" || bail "ERROR: could not fix perms on dir: ${d}"
+chown "${USER}" "${d}" || bail "ERROR: could not fix owner on dir: ${d}"
+cd "${d}" || bail "ERROR: could not change to dir: ${d}"
+
+f="${prot}:${usr}@${dom}"
+if [ ! -e "${f}" ]; then
+  p="`gnome-keyring-query "${gs}" "${prot}" "${usr}" "${dom}"`"
+  [ -n "${p}" ] && echo "${p}" > "${f}"
+fi
+
+[ -e "${f}" ] && cat "${f}" && exit 0
+
+bail "ERROR: no cache file created for dir: ${d}"

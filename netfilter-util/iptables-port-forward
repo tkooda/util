@@ -1,0 +1,15 @@
+#!/bin/bash
+
+## tkooda : 2010-09-22 : simple iptables script to forward local port to remote
+
+[ $# -eq 4 ] || { echo "usage: ${0##*/} <from_ip> <from_port> <to_ip> <to_port>"; exit 2; }
+
+from_ip=${1} # 192.168.0.1
+from_port=${2} # 8181
+to_ip=${3} # 10.0.0.1
+to_port=${4} # 80
+
+iptables -t nat -A PREROUTING -d ${from_ip} -p tcp --dport ${from_port} -j DNAT --to-destination ${to_ip}:${to_port}
+iptables -t filter -A FORWARD -d ${to_ip} -p tcp --dport ${to_port} -j ACCEPT
+iptables -t filter -A FORWARD -s ${to_ip} -p tcp --sport ${to_port} -j ACCEPT
+iptables -t nat -A POSTROUTING -d ${to_ip} -p tcp --dport ${to_port} -j SNAT --to-source ${from_ip}

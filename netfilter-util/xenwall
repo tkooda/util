@@ -1,0 +1,141 @@
+#!/bin/bash
+
+## tkooda : 2007-09-21 : xenwall
+
+# SNAT+DNAT ips: "${ext_a}:${int_a}"
+SNAT_DNAT=""
+SNAT_DNAT="${SNAT_DNAT} 192.168.1.164-172.17.2.2"
+SNAT_DNAT="${SNAT_DNAT} 192.168.1.176-172.17.3.2"
+SNAT_DNAT="${SNAT_DNAT} 192.168.1.177-172.17.4.2"
+
+# SNAT (for using the common IP as a gateway)
+SNAT=""
+SNAT="${SNAT} 192.168.1.140-172.17.1.2"
+
+# DNAT ports in: "${proto}=${ext_a}:${ext_p}-${int_a}:${int_p}"
+DNAT=""
+DNAT="${DNAT} tcp=192.168.1.140:2222-172.17.1.2:22"
+DNAT="${DNAT} tcp=192.168.1.140:53-172.17.1.2:53"
+DNAT="${DNAT} udp=192.168.1.140:53-172.17.1.2:53"
+
+
+if [ -n "${DEBUG}" ]; then function iptables { echo iptables $@; }; fi
+
+# flush tables..
+iptables -t filter -F
+iptables -t filter -X
+iptables -t nat -F
+iptables -t nat -X
+
+# temporarily default all chains to accept..
+for table_chain in \
+  filter:INPUT filter:FORWARD filter:OUTPUT \
+  nat:PREROUTING nat:POSTROUTING nat:OUTPUT ; do
+  table="${table_chain%%:*}"
+  chain="${table_chain##*:}"
+  iptables -t "${table}" -P "${chain}" ACCEPT
+done
+
+[ "${1}" == "stop" ] && exit
+
+# allow special stuff..
+iptables -t filter -A INPUT -i lo -j ACCEPT
+iptables -t filter -A INPUT \
+    -p icmp --icmp-type destination-unreachable -j ACCEPT
+iptables -t filter -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+iptables -t filter -A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
+iptables -t filter -A INPUT -p icmp --icmp-type parameter-problem -j ACCEPT
+iptables -t filter -A INPUT -p icmp --icmp-type time-exceed -j ACCEPT
+iptables -t filter -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -t filter -A INPUT -m state --state INVALID -j DROP
+iptables -t nat -A PREROUTING -m state --state ESTABLISHED,RELATED -j ACCEPT
+echo "1" > /proc/sys/net/ipv4/ip_forward
+echo "65536" > /proc/sys/net/ipv4/ip_conntrack_max
+for rpf in /proc/sys/net/ipv4/conf/*/rp_filter ; do
+  echo "0" > "${rpf}"
+done
+
+# global allows..
+iptables -t filter -A INPUT -p tcp -s 192.168.0.0/16 --dport 22 -j ACCEPT
+iptables -t nat -A PREROUTING -p tcp -s 192.168.0.0/16 --dport 22 -j ACCEPT
+
+
+# setup drop chains for each table..
+iptables -t filter -N XENWALL_DROP
+iptables -t filter -A XENWALL_DROP \
+    -p tcp -j REJECT --reject-with tcp-reset
+iptables -t filter -A XENWALL_DROP \
+    ! -p tcp -j REJECT --reject-with icmp-port-unreachable
+iptables -t filter -A XENWALL_DROP -j DROP
+
+# setup log+drop chains for each built-in chain (except filter:OUTPUT and nat:PREROUTING, nat:POSTROUTING, and nat:OUTPUT)..
+for table_chain in \
+  filter:INPUT filter:FORWARD ; do
+  table="${table_chain%%:*}"
+  chain="${table_chain##*:}"
+  iptables -t "${table}" -N "XENWALL_LOGDROP_${chain}"
+  iptables -t "${table}" -A "XENWALL_LOGDROP_${chain}" \
+      -p tcp -m limit --limit 10/s \
+      -j LOG --log-level info --log-prefix "drop_${table}_${chain}_tcp "
+  iptables -t "${table}" -A "XENWALL_LOGDROP_${chain}" \
+      -p udp -m limit --limit 10/s \
+      -j LOG --log-level info --log-prefix "drop_${table}_${chain}_udp "
+  iptables -t "${table}" -A "XENWALL_LOGDROP_${chain}" \
+      -p icmp -m limit --limit 10/s \
+      -j LOG --log-level info --log-prefix "drop_${table}_${chain}_icmp "
+  iptables -t "${table}" -A "XENWALL_LOGDROP_${chain}" -j XENWALL_DROP
+done
+
+# DNAT for forwarding individual ports in..
+for prot_ext_int in ${DNAT} ; do
+  prot="${prot_ext_int%%=*}"
+  ext_int="${prot_ext_int##*=}"
+  ext="${ext_int%%-*}"
+  int="${ext_int##*-}"
+  ext_a="${ext%%:*}"
+  ext_p="${ext##*:}"
+  int_a="${int%%:*}"
+  int_p="${int##*:}"
+  iptables -t nat -A PREROUTING \
+      -p "${prot}" -d "${ext_a}" --dport "${ext_p}" \
+      -j DNAT --to-destination "${int_a}:${int_p}"
+  iptables -t filter -A FORWARD \
+      -p "${prot}" -d "${int_a}" --dport "${int_p}" -j ACCEPT
+  iptables -t nat -A POSTROUTING \
+      -p "${prot}" -d "${int_a}" --dport "${int_p}" -j ACCEPT
+  iptables -t filter -A FORWARD \
+      -p "${prot}" -s "${int_a}" --sport "${int_p}" -j ACCEPT
+done
+
+# SNAT+DNAT int<->ext for NATing pairs of external and internal IPs
+for ext_int in ${SNAT_DNAT} ; do
+  ext="${ext_int%%-*}"
+  int="${ext_int##*-}"
+  iptables -t filter -A FORWARD -s "${int}" -j ACCEPT
+  iptables -t nat -A POSTROUTING -s "${int}" -j SNAT --to-source "${ext}"
+  iptables -t filter -A FORWARD -d "${int}" -j ACCEPT
+  iptables -t nat -A PREROUTING -d "${ext}" -j DNAT --to-destination "${int}"
+done
+
+# SNAT int->ext (to "share" dom0 ip for domU default gateway),
+#  for using an external IP as a gateway
+for ext_int in ${SNAT} ; do
+  ext="${ext_int%%-*}"
+  int="${ext_int##*-}"
+  iptables -t nat -A PREROUTING -s "${int}" -j ACCEPT
+  iptables -t nat -A POSTROUTING -s "${int}" -j SNAT --to-source "${ext}"
+  iptables -t filter -A FORWARD -s "${int}" -j ACCEPT
+  iptables -t filter -A FORWARD -d "${int}" -j ACCEPT
+done
+
+# jump to log+drop, and (for good measure) change default drop policy
+#  at end of build-in chains (except filter:OUTPUT, nat:PREROUTING, 
+#  nat:OUTPUT, nat:POSTROUTING)..
+for table_chain in \
+  filter:INPUT filter:FORWARD ; do
+  table="${table_chain%%:*}"
+  chain="${table_chain##*:}"
+  iptables -t "${table}" -A "${chain}" -j "XENWALL_LOGDROP_${chain}"
+  iptables -t "${table}" -P "${chain}" DROP # exec'd multiple times, but okay
+done
+

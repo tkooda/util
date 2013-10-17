@@ -1,0 +1,29 @@
+#!/bin/bash
+
+## e.g. usage: ./yorn "run program" y && ./program
+
+function bail { echo -e "$1" >&2; exit 1; }
+
+[ $# -eq 1 -o $# -eq 2 ] || bail "usage: ${0##*/} <question> [y|n]"
+question="${1}"
+def="${2}"
+
+if [ "${def}" == "y" -o "${def}" == "Y" ]; then
+    str="Y/n"
+elif [ "${def}" == "n" -o "${def}" == "N" ]; then
+    str="y/N"
+else
+    str="y/n"      
+fi
+
+while true; do
+  echo -n "${question} [${str}]? "
+  read ans
+  [ "${ans}" == "y" -o "${ans}" == "Y" ] && exit 0
+  [ "${ans}" == "n" -o "${ans}" == "N" ] && exit 1
+  if [ -z "${ans}" ]; then
+      [ "${def}" == "y" -o "${def}" == "Y" ] && exit 0
+      [ "${def}" == "n" -o "${def}" == "N" ] && exit 1
+  fi
+done
+
