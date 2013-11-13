@@ -10,6 +10,7 @@ import sys
 import vobject
 import datetime
 import dateutil.tz
+import pytz
 
 
 def human_readable_when( dt ):
@@ -44,13 +45,18 @@ def human_readable_seconds( seconds ):
     return h
 
 
+
+
 def get_datetime( dt, when = False ):
     localtz = dateutil.tz.tzlocal()
     localtzname = localtz.tzname( dt )
+    
+    dt = dt.replace( tzinfo = pytz.utc ).astimezone( localtz ) # NO!
+    
     if when:
         return dt.strftime("%A %m/%d/%Y @ %I:%M %p %z") + " (%s)  (%s)" % \
             ( localtzname, human_readable_when( dt ) )
-        
+    
     return dt.strftime("%A %m/%d/%Y @ %I:%M %p %z") + " (%s)" % localtzname
 
 
