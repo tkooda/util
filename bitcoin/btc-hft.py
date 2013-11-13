@@ -190,14 +190,10 @@ poll_sets = []
 poll_sets.append( poll_mtgox() )
 poll_sets.append( poll_btce() )
 poll_sets.append( poll_bitstamp() )
-poll_sets.append( poll_bitfloor() )
+## tkooda : 2013-11-13 : bitfloor offline
+##poll_sets.append( poll_bitfloor() )
 poll_sets.append( poll_btc24() )
 
-
-#poll_sets = [{'ask_qty': '?', 'fee_sell': 1, 'name': 'mtgox', 'fee_buy': 1, 'time': 1365643952.267199, 'bid_qty': '?', 'ask_usd': 178.0, 'bid_usd': 176.5}, {'ask_qty': '?', 'fee_sell': 1, 'name': 'bitstamp', 'fee_buy': 1, 'time': 1365643952.610707, 'bid_qty': '?', 'ask_usd': 175.0, 'bid_usd': 174.03}, {'ask_qty': 0.858, 'fee_sell': 1, 'name': 'bitfloor', 'fee_buy': 1, 'time': 1365643952.829987, 'bid_qty': 5.88736, 'ask_usd': 183.82, 'bid_usd': 177.89}]
-#poll_sets = [{'ask_qty': '?', 'fee_sell': 1, 'name': 'mtgox', 'fee_buy': 1, 'time': 1365644122.113184, 'bid_qty': '?', 'ask_usd': 174.1119, 'bid_usd': 174.111}, {'ask_qty': '?', 'fee_sell': 1, 'name': 'bitstamp', 'fee_buy': 1, 'time': 1365644123.337326, 'bid_qty': '?', 'ask_usd': 174.99, 'bid_usd': 174.02}, {'ask_qty': 5.20292, 'fee_sell': 1, 'name': 'bitfloor', 'fee_buy': 1, 'time': 1365644124.783869, 'bid_qty': 0.1, 'ask_usd': 182.9, 'bid_usd': 178.02}]
-#poll_sets = [{'ask_qty': '?', 'fee_sell': 0.006, 'name': 'mtgox', 'fee_buy': 0.006, 'time': 1365645072.947743, 'bid_qty': '?', 'ask_usd': 170.0, 'bid_usd': 168.777}, {'ask_qty': 2.00020054, 'fee_sell': 1, 'name': 'bitstamp', 'fee_buy': 1, 'time': 1365645073.188281, 'bid_qty': 1.24400361, 'ask_usd': 98000.0, 'bid_usd': 162.01}, {'ask_qty': 0.28, 'fee_sell': 1, 'name': 'bitfloor', 'fee_buy': 1, 'time': 1365645073.449127, 'bid_qty': 25.542, 'ask_usd': 175.99, 'bid_usd': 175.0}] # net profit: $ 127.71
-# [{'ask_qty': 20.12683961, 'fee_sell': 0.006, 'name': 'mtgox', 'fee_buy': 0.006, 'time': 1365648952.319572, 'bid_qty': 0.08994817, 'ask_usd': 172, 'bid_usd': 157.44999}, {'ask_qty': 20.17465997, 'fee_sell': 1, 'name': 'bitstamp', 'fee_buy': 1, 'time': 1365648952.585542, 'bid_qty': 4.0, 'ask_usd': 156.82, 'bid_usd': 155.5}, {'ask_qty': 20.0, 'fee_sell': 1, 'name': 'bitfloor', 'fee_buy': 1, 'time': 1365648952.812141, 'bid_qty': 1.99184, 'ask_usd': 173.08, 'bid_usd': 167.26}] # $20
 
 print "HTTP/1.0 200 OK"
 print "Content-Type: text/plain"
