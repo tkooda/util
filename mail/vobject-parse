@@ -72,8 +72,18 @@ for f in sys.argv[ 1: ]:
     
     for component in vobject.readComponents( s ):
         print "Now:  ", get_datetime( datetime.datetime.now() )
+        
+        if component.vevent.rruleset:
+            now = datetime.datetime.now().replace( tzinfo = pytz.utc )
+            for i in list( component.vevent.rruleset ): ## FIXME: slow!
+                i = i.replace( tzinfo = pytz.utc ) ## FIXME: use dynamic timezone!
+                if i > now:
+                    print "Next: ", get_datetime( i, when = True )
+                    break
+        
         print "Start:", get_datetime( component.vevent.dtstart.value, when = True )
         print "End:  ", get_datetime( component.vevent.dtend.value )
+        
         duration = component.vevent.dtend.value - component.vevent.dtstart.value
         print "Duration:", human_readable_seconds( duration.seconds )
 #        print "Created:", get_datetime( component.vevent.created.value )
