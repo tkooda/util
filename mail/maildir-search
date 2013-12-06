@@ -152,6 +152,8 @@ if __name__ == '__main__':
     ignored_dir = 0
     ignored_file = 0
     examined_file = 0
+    ignored_message_ids = 0
+    
     
     ## walk down directory tree ..
     for path in sys.argv[ 2: ]:
@@ -238,6 +240,7 @@ if __name__ == '__main__':
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
                 hit.add( base_check )
                 new_hit += 1
+                ignored_message_ids += 1
                 continue
 ## end
             
@@ -252,6 +255,9 @@ if __name__ == '__main__':
                 message_id = get_message_id( msg )
                 ignore_message_ids.add( message_id )
         
+        
+        if ignored_message_ids:
+            print "skipped messages with seen message-ids: %d" % ignored_message_ids
         
         if new_hit:
             write_set_to_file( hit, path_file_hit )
