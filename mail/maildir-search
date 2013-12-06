@@ -56,6 +56,12 @@ def is_my_email( msg ):
     return False
 
 
+def get_message_id( msg ):
+    if "Message-ID" in msg:
+        return msg[ "Message-ID" ]
+    return False
+
+
 ## warning: fails when the parts themselves have multiparts, and it really only returns the first text part
 def get_message_body( msg ):
     maintype = msg.get_content_maintype()
@@ -135,6 +141,8 @@ if __name__ == '__main__':
     create_missing( path_file_miss )
     miss = set( line.strip() for line in open( path_file_miss ) )
     print "loaded misses:", len( miss )
+    
+    ignore_message_ids = set() # message-ids of messages we've said "Yes" to ignore question
     
     hits_tocheck = []
     
@@ -221,14 +229,31 @@ if __name__ == '__main__':
     
     if hits_tocheck:
         new_hit = 0
+
         for path_check in hits_tocheck:
+## tkooda : 2013-12-05 : automatically ignore messages with the same message-id of other messages we've already ignored
+            msg = read_email( path_check )
+            message_id = get_message_id( msg )
+            if message_id in ignore_message_ids: # auto-ignore this already ignored message-id
+                base_check = os.path.basename( path_check ).split( ":", 1 )[0]
+                hit.add( base_check )
+                new_hit += 1
+                continue
+## end
+            
             subprocess.call( [ "less", "-p", config[ "regex_message_match" ], path_check ] )
             if prompt_answer( path_check ):
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
                 hit.add( base_check )
                 new_hit += 1
+                
+                # also ignore future occurances of this same message-id
+                msg = read_email( path_check )
+                message_id = get_message_id( msg )
+                ignore_message_ids.add( message_id )
+        
         
         if new_hit:
             write_set_to_file( hit, path_file_hit )
             print "saved hits: %d new, %d total" % ( new_hit, len( hit ) )
-    
+
