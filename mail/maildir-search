@@ -155,7 +155,6 @@ if __name__ == '__main__':
     count_new_message_id = 0
     count_ignored_dir = 0
     count_ignored_file = 0
-    count_ignored_message_ids = 0
     count_skipped_message_ids = 0
     count_examined_file = 0
     
@@ -259,13 +258,13 @@ if __name__ == '__main__':
                 msg = read_email( path_check )
                 message_id = get_message_id( msg )
                 set_of_message_ids.add( message_id )
-                count_ignored_message_ids += 1
+                count_new_message_id += 1
         
         
         if count_skipped_message_ids:
-            print "skipped messages with seen message-ids: %d" % count_ignored_message_ids
+            print "skipped messages with seen message-ids: %d" % count_skipped_message_ids
         
-        if count_ignored_message_ids:
+        if count_new_message_id:
             write_set_to_file( set_of_message_ids, path_file_message_id )
             print "saved set_of_message_ids: %d new, %d total" % ( count_new_message_id, len( set_of_message_ids ) )
         
