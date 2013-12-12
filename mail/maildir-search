@@ -129,30 +129,35 @@ if __name__ == '__main__':
     
     path_file_skip = os.path.join( path_dir_cache, "maildir-search_skip.txt" )
     create_missing( path_file_skip )
-    skip = set( line.strip() for line in open( path_file_skip ) )
-    print "loaded skips:", len( skip )
+    set_of_skips = set( line.strip() for line in open( path_file_skip ) )
+    print "loaded set_of_skips:", len( set_of_skips )
     
     path_file_hit = os.path.join( path_dir_cache, "maildir-search_hit.txt" )
     create_missing( path_file_hit )
-    hit = set( line.strip() for line in open( path_file_hit ) )
-    print "loaded hits:", len( hit )
+    set_of_hits = set( line.strip() for line in open( path_file_hit ) )
+    print "loaded set_of_hits:", len( set_of_hits )
     
     path_file_miss = os.path.join( path_dir_cache, "maildir-search_miss.txt" )
     create_missing( path_file_miss )
-    miss = set( line.strip() for line in open( path_file_miss ) )
-    print "loaded misses:", len( miss )
+    set_of_misses = set( line.strip() for line in open( path_file_miss ) )
+    print "loaded set_of_misses:", len( set_of_misses )
     
-    ignore_message_ids = set() # message-ids of messages we've said "Yes" to ignore question
+    path_file_message_id = os.path.join( path_dir_cache, "maildir-search_message_id.txt" )
+    create_missing( path_file_message_id )
+    set_of_message_ids = set( line.strip() for line in open( path_file_message_id ) )
+    print "loaded set_of_message_ids:", len( set_of_message_ids )
     
     hits_tocheck = []
     
-    new_skip = 0
-    new_hit = 0
-    new_miss = 0
-    ignored_dir = 0
-    ignored_file = 0
-    examined_file = 0
-    ignored_message_ids = 0
+    count_new_skip = 0
+    count_new_hit = 0
+    count_new_miss = 0
+    count_new_message_id = 0
+    count_ignored_dir = 0
+    count_ignored_file = 0
+    count_ignored_message_ids = 0
+    count_skipped_message_ids = 0
+    count_examined_file = 0
     
     
     ## walk down directory tree ..
@@ -164,8 +169,8 @@ if __name__ == '__main__':
                     d_path = os.path.join( root, d )
                     if minutes:
                         if time.time() - os.path.getmtime( d_path ) > minutes * 60: # ignore directory if older than $minutes
-                            do_debug( 1, "ignoring dir", d_path )
-                            ignored_dir += 1
+                            do_debug( 5, "ignoring dir", d_path )
+                            count_ignored_dir += 1
                             continue
                 
                 for f in files:
@@ -173,93 +178,98 @@ if __name__ == '__main__':
                 
                     if minutes:
                         if time.time() - os.path.getmtime( f_path ) > minutes * 60: # ignore file if older than $minutes
-                            ignored_file += 1
+                            count_ignored_file += 1
                             continue
                 
 	                f_base = f.split( ":", 1 )[0]
 	                
-	                if f_base in skip:
-	                    do_debug( 1, "old skip", f_base )
+	                if f_base in set_of_skips:
+	                    do_debug( 4, "old skip", f_base )
 	                    continue
 	                
-	                if f_base in hit:
-	                    do_debug( 1, "old hit", f_base )
+	                if f_base in set_of_hits:
+	                    do_debug( 4, "old hit", f_base )
 	                    continue
 	                
-	                if f_base in miss:
-	                    do_debug( 1, "old miss", f_base )
+	                if f_base in set_of_misses:
+	                    do_debug( 4, "old miss", f_base )
 	                    continue
 	                
 	                msg = read_email( f_path )
-	                examined_file += 1
+	                count_examined_file += 1
 	                
 	                if is_my_email( msg ):
 	                    ## this email was sent to/from me, skip it ..
-	                    do_debug( 1, "new skip", f_base )
-	                    new_skip += 1
-	                    skip.add( f_base )
+	                    do_debug( 3, "new skip", f_base )
+	                    count_new_skip += 1
+	                    set_of_skips.add( f_base )
 	                elif pattern_message_match.search( str( get_message_body( msg ) ) ):
 	                    ## this email matches my regex ..
-	                    do_debug( 1, "new hit", f_base )
+	                    do_debug( 3, "new hit", f_base )
 	                    if f_path not in hits_tocheck:
 	                        hits_tocheck.append( f_path )
 	                else:
 	                    ## this email wasn't sent to/from me, an doesn't match my regex ..
-	                    do_debug( 1, "new miss", f_base )
-	                    new_miss += 1
-	                    miss.add( f_base )
+	                    do_debug( 3, "new miss", f_base )
+	                    count_new_miss += 1
+	                    set_of_misses.add( f_base )
 	    except:
                 pass # silently ignore errors (e.g. file moved)
     
     
-    if ignored_dir:
-        print "ignored dirs: %d" % ignored_dir
+    if count_ignored_dir:
+        print "ignored dirs: %d" % count_ignored_dir
     
-    if ignored_file:
-        print "ignored files: %d" % ignored_file
+    if count_ignored_file:
+        print "ignored files: %d" % count_ignored_file
     
-    if examined_file:
-        print "examined files: %d" % examined_file
+    if count_examined_file:
+        print "count_examined files: %d" % count_examined_file
     
-    if new_miss:
-        write_set_to_file( miss, path_file_miss )
-        print "saved misses: %d new, %d total" % ( new_miss, len( miss ) )
+    if count_new_miss:
+        write_set_to_file( set_of_misses, path_file_miss )
+        print "saved set_of_misses: %d new, %d total" % ( count_new_miss, len( set_of_misses ) )
 
-    if new_skip:
-        write_set_to_file( skip, path_file_skip )
-        print "saved skips: %d new, %d total" % ( new_skip, len( skip ) )
+    if count_new_skip:
+        write_set_to_file( set_of_skips, path_file_skip )
+        print "saved set_of_skips: %d new, %d total" % ( count_new_skip, len( set_of_skips ) )
     
     if hits_tocheck:
-        new_hit = 0
+        count_new_hit = 0
 
         for path_check in hits_tocheck:
 ## tkooda : 2013-12-05 : automatically ignore messages with the same message-id of other messages we've already ignored
             msg = read_email( path_check )
             message_id = get_message_id( msg )
-            if message_id in ignore_message_ids: # auto-ignore this already ignored message-id
+            if message_id in set_of_message_ids: # auto-ignore this already ignored message-id
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
-                hit.add( base_check )
-                new_hit += 1
-                ignored_message_ids += 1
+                set_of_hits.add( base_check )
+                count_new_hit += 1
+                count_skipped_message_ids += 1
                 continue
 ## end
             
             subprocess.call( [ "less", "-p", config[ "regex_message_match" ], path_check ] )
             if prompt_answer( path_check ):
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
-                hit.add( base_check )
-                new_hit += 1
+                set_of_hits.add( base_check )
+                count_new_hit += 1
                 
                 # also ignore future occurances of this same message-id
                 msg = read_email( path_check )
                 message_id = get_message_id( msg )
-                ignore_message_ids.add( message_id )
+                set_of_message_ids.add( message_id )
+                count_ignored_message_ids += 1
         
         
-        if ignored_message_ids:
-            print "skipped messages with seen message-ids: %d" % ignored_message_ids
+        if count_skipped_message_ids:
+            print "skipped messages with seen message-ids: %d" % count_ignored_message_ids
         
-        if new_hit:
-            write_set_to_file( hit, path_file_hit )
-            print "saved hits: %d new, %d total" % ( new_hit, len( hit ) )
+        if count_ignored_message_ids:
+            write_set_to_file( set_of_message_ids, path_file_message_id )
+            print "saved set_of_message_ids: %d new, %d total" % ( count_new_message_id, len( set_of_message_ids ) )
+        
+        if count_new_hit:
+            write_set_to_file( set_of_hits, path_file_hit )
+            print "saved set_of_hits: %d new, %d total" % ( count_new_hit, len( set_of_hits ) )
 
