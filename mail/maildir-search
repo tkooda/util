@@ -238,7 +238,11 @@ if __name__ == '__main__':
 
         for path_check in hits_tocheck:
 ## tkooda : 2013-12-05 : automatically ignore messages with the same message-id of other messages we've already ignored
-            msg = read_email( path_check )
+            try:
+                msg = read_email( path_check )
+            except IOError: # if file moves before we get to it, just quietly ignore it and check the next one
+                continue
+            
             message_id = get_message_id( msg )
             if message_id in set_of_message_ids: # auto-ignore this already ignored message-id
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
@@ -255,7 +259,11 @@ if __name__ == '__main__':
                 count_new_hit += 1
                 
                 # also ignore future occurances of this same message-id
-                msg = read_email( path_check )
+                try:
+                    msg = read_email( path_check )
+                except IOError: # if file moves before we get to it, just quietly ignore it and check the next one
+                    continue
+                
                 message_id = get_message_id( msg )
                 set_of_message_ids.add( message_id )
                 count_new_message_id += 1
