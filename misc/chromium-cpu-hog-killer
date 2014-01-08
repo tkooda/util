@@ -1,0 +1,45 @@
+#!/usr/bin/python
+
+## tkooda : 2012-02-24 : kill chromium-browser tabs that are using too much cpu and causing my laptop fan to be on, but not the actual browser parent chromium-browser window
+
+import sys
+import psutil
+import time
+import os
+import signal
+
+
+all_processes = list( psutil.process_iter() )
+
+## seed cpu percent for all chromium processes..
+for proc in all_processes:
+	if proc.name.startswith( "chromium-browse" ):
+		proc.get_cpu_percent( interval=0 )
+
+time.sleep( 2 )
+
+kill_count = 0
+for proc in all_processes:
+	try:
+		## ignore non-chromium processes..
+		if not proc.name.startswith( "chromium-browse" ):
+			continue
+		
+		## skip chromium parent window processes (only kill tabs)..
+		if not proc.parent.name.startswith( "chromium-browse" ):
+			continue
+		
+		percent = proc.get_cpu_percent( interval=0 )
+		if percent < 95:
+			continue
+		
+		print "KILLING: %s %f (%s) (%s)" % ( proc.pid, percent, proc.name, proc.parent.name )
+		os.kill( int( proc.pid ), signal.SIGTERM )
+		kill_count += 1
+		
+	except:
+		## ignore processes that might have ended during our sleep()
+		pass
+
+
+sys.exit( kill_count )
