@@ -1,0 +1,63 @@
+#!/usr/bin/python
+
+## tkooda : 2012-02-24 : kill chromium-browser tabs that are using too much cpu and causing my laptop fan to be on, but not the actual browser parent chromium-browser window
+
+import sys
+import psutil
+import time
+import os
+import signal
+import argparse
+
+
+parser = argparse.ArgumentParser( description="kill chromium-browser tabs based on CPU usage" )
+parser.add_argument( "-n", help="dry run", action="store_false" )
+parser.add_argument( "-p", help="CPU percentage threshold (default: %(default)s)", default=90 )
+parser.add_argument( "-s", help="command starts with string (default: %(default)s)", default="chromium-browse" )
+args = parser.parse_args()
+
+
+all_processes = list( psutil.process_iter() )
+
+## seed cpu percent for all chromium processes..
+for proc in all_processes:
+	## ignore non-chromium processes..
+	if not proc.name.startswith( args.s ):
+		continue
+	
+	## skip chromium parent window processes (only kill tabs)..
+	if not proc.parent.name.startswith( args.s ):
+		continue
+	
+	proc.get_cpu_percent( interval=0 )
+
+
+time.sleep( 2 ) ## give enough time for CPU percentages to be meaningful
+
+match_count = 0
+for proc in all_processes:
+	try:
+		## ignore non-chromium processes..
+		if not proc.name.startswith( args.s ):
+			continue
+		
+		## skip chromium parent window processes (only kill tabs)..
+		if not proc.parent.name.startswith( args.s ):
+			continue
+		
+		percent = proc.get_cpu_percent( interval=0 )
+		if percent < int( args.p ):
+			continue
+		
+		if args.n:
+			print "KILLING: %s %f (%s) (%s)" % ( proc.pid, percent, proc.name, proc.parent.name )
+			os.kill( int( proc.pid ), signal.SIGTERM )
+		else:
+			print "IGNORED: %s %f (%s) (%s)" % ( proc.pid, percent, proc.name, proc.parent.name )
+		match_count += 1
+		
+	except:
+		## ignore processes that might have ended during our sleep()
+		pass
+
+sys.exit( match_count )
