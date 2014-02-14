@@ -13,7 +13,7 @@
 ##   set display_filter = "/path/to/rfc822-local-date"
 
 ## ISSUES:
-##  - fails on dates dateutil.parser.parse() cannot parse (non-standard??) dates without time zone offset: "Tue, 10 Aug 2010 14:41:49 EDT"
+##  - fails on (non-standard??) dates (without the time zone offset?) that dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:49 EDT"
 
 
 import sys
