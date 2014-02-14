@@ -252,7 +252,8 @@ if __name__ == '__main__':
                 continue
 ## end
             
-            subprocess.call( [ "less", "-p", config[ "regex_message_match" ], path_check ] )
+            less_regex = "".join( re.split( "\(\?!.+?\)", config[ "regex_message_match" ] ) ) # remove any negative lookahead assertions that aren't supported by less's regex (as long as they don't also contain their own parens)
+            subprocess.call( [ "less", "-p", less_regex, path_check ] )
             if prompt_answer( path_check ):
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
                 set_of_hits.add( base_check )
