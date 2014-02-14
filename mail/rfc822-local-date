@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
-## tkooda : 2014-02-13 : v0.01 : rfc822-local-date
+## tkooda : 2014-02-13 : v0.02 : rfc822-local-date
+
+## A display_filter for displaying the "Date:" header in the local timezone in the Mutt email client
+
 
 ## NOTES:
 ##  - display "Date:" headers in local time (plus human-readable offset) in Mutt
