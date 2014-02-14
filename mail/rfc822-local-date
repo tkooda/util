@@ -21,17 +21,18 @@ from dateutil.tz import tzlocal
 date_seen = False
 
 for line in sys.stdin:
-    print line ,
     if not date_seen and line.startswith( "Date: " ):
         try:
+            print "Orig-%s" % line ,
             msg_datetime = parse( line[ 6: ].strip() )
             local_datetime = msg_datetime.astimezone( tzlocal() )
-            print "Date:", local_datetime.strftime( "%a, %d %b %Y %H:%M:%S %z (%Z)" )
-            print "Orig-%s" % line ,
+            print "Date:", local_datetime.strftime( "%a, %d %b %Y %H:%M:%S %z (%Z)" ) # local
         except:
             print line , # DEBUG
             pass
         
         date_seen = True
+    else:
+        print line ,
 
 
