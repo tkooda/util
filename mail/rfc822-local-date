@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+## tkooda : 2014-02-13 : v0.01 : rfc822-local-date
+
+## NOTES:
+##  - display "Date:" headers in local time in Mutt
+##  - http://www.mutt.org/doc/manual/manual-6.html#display_filter
+
+## USAGE in ~/.muttrc :
+##   display_filter="/..../rfc822-local-date"
+
+## ISSUES:
+##  - fails on dates dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:49 EDT"
+
+
+import sys
+from dateutil.parser import parse
+from dateutil.tz import tzlocal
+
+
+date_seen = False
+
+for line in sys.stdin:
+    print line ,
+    if not date_seen and line.startswith( "Date: " ):
+        try:
+            msg_datetime = parse( line[ 6: ].strip() )
+            local_datetime = msg_datetime.astimezone( tzlocal() )
+            print "Date:", local_datetime.strftime( "%a, %d %b %Y %H:%M:%S %z (%Z)" )
+            print "Orig-%s" % line ,
+        except:
+            print line , # DEBUG
+            pass
+        
+        date_seen = True
+
+
