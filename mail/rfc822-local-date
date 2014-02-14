@@ -7,7 +7,7 @@
 ##  - http://www.mutt.org/doc/manual/manual-6.html#display_filter
 
 ## USAGE in ~/.muttrc :
-##   display_filter="/..../rfc822-local-date"
+##   set display_filter = "/path/to/rfc822-local-date"
 
 ## ISSUES:
 ##  - fails on dates dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:49 EDT"
