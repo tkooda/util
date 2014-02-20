@@ -9,13 +9,14 @@
 ##  - quickly search Maildirs for new email messages
 ##  - scan email messages
 ##    - skip email messages that match a To/From/CC/BCC/Resent-From/Resent-To regex
-##    - display messages that contain a matching regex and
+##    - display messages that contain a matching regex (that don't also match the ignore regex) and
 ##      - prompt to ignore that message in the future
 
 ## config example (~/.config/maildir-search.cfg) :
 ## 
 ##   { "regex_address_skip": "((asmith|adam.smith)@example.com|adam@gmail.com)",
-##     "regex_message_match": "([^a-z]|^)(adam|smith)([^a-z]|s[^a-z]|$)" }
+##     "regex_message_match": "([^a-z]|^)(adam|smith)([^a-z]|s[^a-z]|$)",
+##     "regex_message_ignore": "(blacksmith|smithers)" }
 ## 
 
 ## usage example:
@@ -121,6 +122,7 @@ if __name__ == '__main__':
 
     pattern_address_skip = re.compile( config[ "regex_address_skip" ], re.M | re.I )
     pattern_message_match = re.compile( config[ "regex_message_match" ], re.M | re.I )
+    pattern_message_ignore = re.compile( config[ "regex_message_ignore" ], re.M | re.I )
     
     if os.getenv( "DEBUG" ):
         path_dir_cache = "/tmp"
@@ -202,16 +204,26 @@ if __name__ == '__main__':
 	                    do_debug( 3, "new skip", f_base )
 	                    count_new_skip += 1
 	                    set_of_skips.add( f_base )
-	                elif pattern_message_match.search( str( get_message_body( msg ) ) ):
-	                    ## this email matches my regex ..
-	                    do_debug( 3, "new hit", f_base )
-	                    if f_path not in hits_tocheck:
-	                        hits_tocheck.append( f_path )
 	                else:
-	                    ## this email wasn't sent to/from me, an doesn't match my regex ..
-	                    do_debug( 3, "new miss", f_base )
-	                    count_new_miss += 1
-	                    set_of_misses.add( f_base )
+                            m = pattern_message_match.search( str( get_message_body( msg ) ) )
+                            if m:
+                                ## this email matches my regex ..
+                                
+                                ## check if we're supposed to ignore this regex match..
+                                match_plus_bookend_chars = "".join( m.groups() )
+                                do_debug( 3, "pattern_message_match", match_plus_bookend_chars )
+                                if pattern_message_ignore.search( "".join( m.groups() ) ):
+                                    do_debug( 3, "ignoring new hit", match_plus_bookend_chars )
+                                else:
+                                    do_debug( 3, "new hit", f_base )
+                                    if f_path not in hits_tocheck:
+                                        hits_tocheck.append( f_path )
+                                
+                            else:
+                                ## this email wasn't sent to/from me, an doesn't match my regex ..
+                                do_debug( 3, "new miss", f_base )
+                                count_new_miss += 1
+                                set_of_misses.add( f_base )
 	    except:
                 pass # silently ignore errors (e.g. file moved)
     
