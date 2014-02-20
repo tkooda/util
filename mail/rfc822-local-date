@@ -1,0 +1,73 @@
+#!/usr/bin/python
+
+## tkooda : 2014-02-13 : v0.02 : rfc822-local-date
+
+## A display_filter for displaying the "Date:" header in the local timezone in the Mutt email client
+
+
+## NOTES:
+##  - display "Date:" headers in local time (plus human-readable offset) in Mutt
+##  - http://www.mutt.org/doc/manual/manual-6.html#display_filter
+
+## USAGE in ~/.muttrc :
+##   set display_filter = "/path/to/rfc822-local-date"
+
+## ISSUES:
+##  - fails on (non-standard??) dates (without the time zone offset?) that dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:49 EDT"
+
+
+import sys
+from dateutil.parser import parse
+from dateutil.tz import tzlocal
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
+
+
+def date_diff_string( dt_past ):
+    date_str = ""
+    now_datetime = datetime.now().replace( tzinfo=tzlocal() )
+    date_diff = relativedelta( now_datetime, local_datetime )
+    if date_diff.years:
+        date_str += "%s years" % date_diff.years
+    if date_diff.months:
+        if date_str:
+            date_str += ", "
+        date_str += "%s months" % date_diff.months
+    if date_diff.days:
+        if date_str:
+            date_str += ", "
+        date_str += "%s days" % date_diff.days
+    if date_diff.hours:
+        if date_str:
+            date_str += ", "
+        date_str += "%s hours" % date_diff.hours
+    if date_diff.minutes:
+        if date_str:
+            date_str += ", "
+        date_str += "%s minutes" % date_diff.minutes
+    if not date_str:
+        date_str = "seconds"
+    date_str += " ago"
+    return date_str
+    
+
+date_seen = False
+
+for line in sys.stdin:
+    if not date_seen and line.startswith( "Date: " ):
+        try:
+            date_str = line[ 6: ].strip()
+            msg_datetime = parse( date_str )
+            local_datetime = msg_datetime.astimezone( tzlocal() )
+            print "Date:", local_datetime.strftime( "%%a, %%d %%b %%Y %%H:%%M:%%S %%z (%%Z)   [%s]" % date_diff_string( local_datetime ) ) # local + readable offset
+        except:
+            import traceback
+            traceback.print_exc( file=sys.stderr )
+            sys.stderr.flush()
+            pass
+        
+        date_seen = True
+    else:
+        print line ,
+
+
