@@ -61,11 +61,10 @@ for line in sys.stdin:
             local_datetime = msg_datetime.astimezone( tzlocal() )
             print "Date:", local_datetime.strftime( "%%a, %%d %%b %%Y %%H:%%M:%%S %%z (%%Z)   [%s]" % date_diff_string( local_datetime ) ) # local + readable offset
         except:
-            print line , # print unmodified in case of error
             import traceback
             traceback.print_exc( file=sys.stderr )
             sys.stderr.flush()
-            print line ,
+            print line , # print unmodified in case of error
             pass
         
         date_seen = True
