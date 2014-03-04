@@ -10,10 +10,10 @@
 ##  - http://www.mutt.org/doc/manual/manual-6.html#display_filter
 
 ## USAGE in ~/.muttrc :
-##   set display_filter = "/path/to/rfc822-local-date"
+##   set display_filter = "/path/to/rfc822-local-date 2>/dev/null"
 
 ## ISSUES:
-##  - fails on (non-standard??) dates (without the time zone offset?) that dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:49 EDT"
+##  - fails on (non-standard??) dates (without the numerical time zone offset?) that dateutil.parser.parse() cannot parse: "Tue, 10 Aug 2010 14:41:41 EDT", and "Fri, 21 Feb 2014 00:24:20 +0000 (GMT+00:00)"
 
 
 import sys
@@ -64,6 +64,7 @@ for line in sys.stdin:
             import traceback
             traceback.print_exc( file=sys.stderr )
             sys.stderr.flush()
+            print line , # print unmodified in case of error
             pass
         
         date_seen = True
