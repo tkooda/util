@@ -63,18 +63,23 @@ def get_message_id( msg ):
     return False
 
 
-## warning: fails when the parts themselves have multiparts, and it really only returns the first text part
+## return all (appended; even nested in many MIME multiparts) text AND html parts (appended together for searching); as some MUC's will allow them to differ (even though they're "multipart/alternative"!)
 def get_message_body( msg ):
-    maintype = msg.get_content_maintype()
-    if maintype == 'multipart':
-        # return the first part we care about..
-        for preference in [ "text", "html" ]:
-            for part in msg.get_payload():
-                if part.get_content_maintype() == preference:
-                    return part.get_payload()
+    main_type = msg.get_content_maintype()
+    if main_type != "multipart":
+        return msg.get_payload()
     
-    # no (text or html) part we care about could be found, or the body wasn't a multipart, return the whole body..
-    return msg.get_payload()
+    # is main_type is multipart, recurse down every multipart pieces..
+    msg_body_str = ""
+    for part in msg.get_payload():
+        part_type = part.get_content_maintype()
+        if part_type == "multipart":
+            # handle nested MIME multipart messages, recurse..
+            msg_body_str += get_message_body( part )
+        elif part_type == "text" or part_type == "html": # return BOTH text AND html for searching, some MUC's will allow them to differ!
+            msg_body_str += part.get_payload()
+    
+    return msg_body_str
 
 
 def write_set_to_file( s, f ):
@@ -198,14 +203,15 @@ if __name__ == '__main__':
 	                
 	                msg = read_email( f_path )
 	                count_examined_file += 1
-	                
+	                body = str( get_message_body( msg ) )
+                        
 	                if is_my_email( msg ):
 	                    ## this email was sent to/from me, skip it ..
 	                    do_debug( 3, "new skip", f_base )
 	                    count_new_skip += 1
 	                    set_of_skips.add( f_base )
 	                else:
-                            m = pattern_message_match.search( str( get_message_body( msg ) ) )
+                            m = pattern_message_match.search( body )
                             if m:
                                 ## this email matches my regex ..
                                 
@@ -224,6 +230,7 @@ if __name__ == '__main__':
                                 do_debug( 3, "new miss", f_base )
                                 count_new_miss += 1
                                 set_of_misses.add( f_base )
+                            
 	    except:
                 pass # silently ignore errors (e.g. file moved)
     
@@ -249,7 +256,7 @@ if __name__ == '__main__':
         count_new_hit = 0
 
         for path_check in hits_tocheck:
-## tkooda : 2013-12-05 : automatically ignore messages with the same message-id of other messages we've already ignored
+            ## automatically ignore messages with the same message-id of other messages we've already ignored
             try:
                 msg = read_email( path_check )
             except IOError: # if file moves before we get to it, just quietly ignore it and check the next one
@@ -262,10 +269,12 @@ if __name__ == '__main__':
                 count_new_hit += 1
                 count_skipped_message_ids += 1
                 continue
-## end
+            ## end: ignoring message with same message-id of other messages we've already ignored
+            
             
             less_regex = "".join( re.split( "\(\?!.+?\)", config[ "regex_message_match" ] ) ) # remove any negative lookahead assertions that aren't supported by less's regex (as long as they don't also contain their own parens)
             subprocess.call( [ "less", "-p", less_regex, path_check ] )
+            
             if prompt_answer( path_check ):
                 base_check = os.path.basename( path_check ).split( ":", 1 )[0]
                 set_of_hits.add( base_check )
