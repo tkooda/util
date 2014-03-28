@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]; then
+  dirs=/usr/local/git/*
+else
+  dirs=$@
+fi
+
+for d in $dirs; do
+  cd $d || continue
+  echo "pulling: $d .."
+  git pull
+done
+
