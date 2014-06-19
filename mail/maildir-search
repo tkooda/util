@@ -57,6 +57,13 @@ def is_my_email( msg ):
     return False
 
 
+def is_bulk_email( msg ):
+    for header in [ "List-Unsubscribe" ]:
+        if header in msg:
+            return True
+    return False
+
+
 def get_message_id( msg ):
     if "Message-ID" in msg:
         return msg[ "Message-ID" ]
@@ -207,7 +214,12 @@ if __name__ == '__main__':
                         
 	                if is_my_email( msg ):
 	                    ## this email was sent to/from me, skip it ..
-	                    do_debug( 3, "new skip", f_base )
+	                    do_debug( 3, "new skip-mine", f_base )
+	                    count_new_skip += 1
+	                    set_of_skips.add( f_base )
+	                elif is_bulk_email( msg ):
+	                    ## this email is bulk email, skip it ..
+	                    do_debug( 3, "new skip-bulk", f_base )
 	                    count_new_skip += 1
 	                    set_of_skips.add( f_base )
 	                else:
