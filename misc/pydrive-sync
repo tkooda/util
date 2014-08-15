@@ -112,7 +112,7 @@ ERROR: missing client secrets file, please follow these steps to create an OAuth
 
 
 
-def sync_files( drive ):
+def sync_files( drive, path_state_dir, path_sync_dir ):
 ## tkooda : 2014-08-15 : TEMP list only root folder
 ##    for file_list in drive.ListFile():
     for file_list in drive.ListFile( {'q': "'root' in parents"} ):
@@ -127,11 +127,11 @@ def sync_files( drive ):
             
             
             #### cache any missing state (TODO: detect RELEVANT file content/name/etc changes and update local cache (and local file)) ..
-            path_state_dir = os.path.join( PATH_STATE, current_file['id'][ :2 ] )
-            if not os.path.isdir( path_state_dir ):
-                os.makedirs( path_state_dir )
+            path_state_hashdir = os.path.join( path_state_dir, current_file['id'][ :2 ] )
+            if not os.path.isdir( path_state_hashdir ):
+                os.makedirs( path_state_hashdir )
             
-            path_state_file = os.path.join( path_state_dir, current_file['id'] )
+            path_state_file = os.path.join( path_state_hashdir, current_file['id'] )
             if not os.path.isfile( path_state_file ):
                 num = write_file( path_state_file, json.dumps( current_file, sort_keys=True, indent=4 ) )
                 do_debug( 5, "wrote:", num )
@@ -139,14 +139,14 @@ def sync_files( drive ):
             
             #### create any locally missing directory ..
             if current_file[ "mimeType" ] == "application/vnd.google-apps.folder":
-                path_local_dir = os.path.join( PATH_SYNC, current_file['title'] )
+                path_local_dir = os.path.join( path_sync_dir, current_file['title'] )
                 if not os.path.isdir( path_local_dir ):
                     os.makedirs( path_local_dir )
                 continue
             
             
             #### download any locally missing file ..
-            path_local_dir = PATH_SYNC ## TODO FIXME LATER: support creating files in sub-directories
+            path_local_dir = path_sync_dir ## TODO FIXME LATER: support creating files in sub-directories
             if not os.path.isdir( path_local_dir ):
                 os.makedirs( path_local_dir )
             
@@ -183,17 +183,27 @@ if __name__ == '__main__':
         print "usage: %s <google account name> <path to sync directory>" % os.path.basename( sys.argv[0] )
         sys.exit( 2 )
     
-    GOOGLE_ACCOUNT = sys.argv[ 1 ]
-    PATH_SYNC = sys.argv[ 2 ]
-    PATH_STATE = os.path.join( os.getenv( "HOME" ),
-                               ".cache/pydrive_state_%s" % GOOGLE_ACCOUNT )
+    google_account = sys.argv[ 1 ]
+    path_sync_dir = sys.argv[ 2 ]
     
-    path_pydrive_settings_file = os.path.join( os.getenv( "HOME" ),
-                                               ".config/pydrive_settings_%s.yaml" % GOOGLE_ACCOUNT )
-    path_pydrive_client_secrets_file = os.path.join( os.getenv( "HOME" ),
-                                                     ".config/pydrive_client_secrets_%s.json" % GOOGLE_ACCOUNT )
-    path_pydrive_credentials_file = os.path.join( os.getenv( "HOME" ),
-                                                  ".config/pydrive_credentials_%s.json" % GOOGLE_ACCOUNT )
+    path_config_dir = os.path.join( os.getenv( "HOME" ), ".config" )
+    if not os.path.isdir( path_config_dir ):
+        os.makedirs( path_config_dir )
+    
+    path_cache_dir  = os.path.join( os.getenv( "HOME" ), ".cache" )
+    if not os.path.isdir( path_cache_dir ):
+        os.makedirs( path_cache_dir )
+    
+    path_state_dir = os.path.join( path_cache_dir, "pydrive_state_%s" % google_account )
+    
+    path_pydrive_settings_file = os.path.join( path_config_dir,
+                                               "pydrive_settings_%s.yaml" % google_account )
+    
+    path_pydrive_client_secrets_file = os.path.join( path_config_dir,
+                                                     "pydrive_client_secrets_%s.json" % google_account )
+    
+    path_pydrive_credentials_file = os.path.join( path_config_dir,
+                                                  "pydrive_credentials_%s.json" % google_account )
     
     if not os.path.isfile( path_pydrive_settings_file ):
         settings_yaml = "client_config_file: %s\nsave_credentials: true\nsave_credentials_backend: file\nsave_credentials_file: %s\n" % ( path_pydrive_client_secrets_file, path_pydrive_credentials_file )
@@ -211,7 +221,7 @@ if __name__ == '__main__':
     
     drive = GoogleDrive( gauth )
     
-    sync_files( drive )
+    sync_files( drive, path_state_dir, path_sync_dir )
 
 
 
