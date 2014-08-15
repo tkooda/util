@@ -34,6 +34,7 @@
 ##  - override MIMETYPE_IGNORE
 ##  - optional live inotify monitoring of local changes
 ##    - with periodic cloud polling
+##  - decide how to handle files in multiple folders (tags).  -hardlink?
 
 
 
