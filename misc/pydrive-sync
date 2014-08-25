@@ -16,14 +16,18 @@
 
 
 ## NOTES:
+##  - caches json state files in ~/.cache/pydrive_state_*
+##  - stores json config files in ~/.config/pydrive_*
 ##  - https://pypi.python.org/pypi/PyDrive
 ##  - http://pythonhosted.org/PyDrive/oauth.html
 
 
 ## TODO:
 ##  - support subdirectories (currently dumps everything in root local dir)
+##
 ##  - compare cloud json vs. local json (not just absense of local json)
 ##  - compare local file vs. local json (not just absense of local file)
+##
 ##  - uploading of new / changed local files to cloud
 ##  - getopt for:
 ##    - verbose
@@ -111,15 +115,86 @@ ERROR: missing client secrets file, please follow these steps to create an OAuth
     sys.exit( 9 )
 
 
+def get_item( list_items, list_item_id ):
+    for item in list_items:
+        if item[ "id" ] == list_item_id:
+            return item
+
+
+## return an array of strings..  that we prepend each title onto until we hit the root
+def parent_paths( list_items, list_item_id ):
+    list_parent_paths = []
+    
+    item = get_item( list_items, list_item_id )
+    
+    for parent_item in item[ "parents" ]:
+        if parent_item[ "isRoot" ]:
+            print "root hit"
+            list_parent_paths.append( "/" )
+        else:
+            print "no root hit"
+            for parent_path in parent_paths( list_items, parent_item[ "id" ] ):
+                print "pp:", parent_path
+                list_parent_paths.append( os.path.join( parent_path, item[ "title" ] ) )
+                print "cur parent paths:", list_parent_paths
+    
+    return list_parent_paths
+
+
+#item1:
+#  "title"
+#  "id"
+#  parents: [
+#    { "id"
+#      "isRoot" : False
+#    },    
+#    { "id"
+#      "isRoot" : False
+#    },
+#  ]
+#,
+
+
+
 
 def sync_files( drive, path_state_dir, path_sync_dir ):
-## tkooda : 2014-08-15 : TEMP list only root folder
-##    for file_list in drive.ListFile():
-    for file_list in drive.ListFile( {'q': "'root' in parents"} ):
-        do_debug( 5, 'Received %s files from Files.list()' % len( file_list ) )
-        for current_file in file_list:
-            do_debug( 2, 'title: %s, id: %s' % ( current_file['title'], current_file['id'] ) )
-            do_debug( 9, "current_file:", json.dumps( current_file, sort_keys=True, indent=4 ) )
+    
+    ## build list of dict()s of all file + directory entries..
+    drive_list = []
+    for list_items in drive.ListFile(): # DEBUG:  drive.ListFile( {'q': "'root' in parents"} )
+        do_debug( 8, 'Received %s files from Files.list()' % len( list_items ) )
+        drive_list += list_items
+    if DEBUG >= 99:
+        print "DEBUG: drive_list:", json.dumps( drive_list, sort_keys=True, indent=4 )
+        print "###### XXXXXX ########"
+    
+    
+    ## create any missing directories..
+    for list_item in list_items:
+        print "ITEM: (%s) '%s'" % ( list_item[ "id" ], list_item[ "title" ] )
+        for parent_path in parent_paths( list_items, list_item[ "id" ] ):
+            print "parent_path: '%s' , title: '%s'" % ( parent_path, list_item[ "title" ] )
+            print
+        
+        for parent in list_item[ "parents" ]:
+            print "  PARENT: (%s)  ,  root == %s" % ( parent[ "id" ], parent[ "isRoot" ] )
+#            print path_list_item( list_item )
+            
+        print
+    
+#        for current_file in file_list:
+#            do_debug( 2, 'title: %s, id: %s' % ( current_file['title'], current_file['id'] ) )
+    return
+
+    if True:
+        return # DEBUG
+
+    for i in False: # DEBUG
+        if False: # DEBUG
+
+            if DEBUG >= 9:
+                print >>sys.stderr, "current_file:", json.dumps( current_file, sort_keys=True, indent=4 )
+                print
             
             if current_file[ "mimeType" ] in MIMETYPE_IGNORE:
                 print "WARNING: ignoring file '%s' with mimeType '%s'" % ( current_file['title'], current_file['mimeType'] )
