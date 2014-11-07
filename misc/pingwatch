@@ -45,7 +45,7 @@ try:
 		for host in hosts.keys():
 			if host in outbuf.split():
 				if hosts[ host ][0] or not hosts[ host ][1]:
-					print time.strftime( "%T"), "down:", host,
+					print time.strftime( "%F %T"), "down:", host,
 					if hosts[ host ][1]:
 						print " (#%d, was up for %d seconds, since %s)" % ( hosts[ host ][2], time.time() - hosts[ host ][1], time.strftime( "%T", time.localtime( hosts[ host ][1] ) ) )
 					else:
@@ -56,7 +56,7 @@ try:
 						print "DEBUG: still down:", host
 			else:
 				if not hosts[ host ][0] or not hosts[ host ][1]:
-					print time.strftime( "%T"), "up:", host,
+					print time.strftime( "%F %T"), "up:", host,
 					if hosts[ host ][1]:
 						print " (#%d, was down for %d seconds, since %s)" % ( hosts[ host ][2], time.time() - hosts[ host ][1], time.strftime( "%T", time.localtime( hosts[ host ][1] ) ) )
 					else:
