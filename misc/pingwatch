@@ -33,7 +33,7 @@ for host in sys.argv[ 1: ]:
 	if os.environ.get( "DNS_QUERY" ):
 		subprocess.call( "host -t a '%s'" % host, shell=True )
 
-print time.strftime( "%T"), "starting.."
+print time.strftime( "%F %T"), "watching:", " ".join( sys.argv[ 1: ] )
 
 
 try:
