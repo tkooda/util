@@ -14,6 +14,7 @@ shift
 
 for item in $*; do
   cd "${item}" || continue
+  echo "syncing ${item} to ${bucket} .."
 #echo \
   envdir ~/.config/envdir/duplicity/ \
     duplicity \
