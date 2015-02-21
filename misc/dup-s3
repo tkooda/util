@@ -1,12 +1,20 @@
 #!/bin/bash
 
-[ $# -lt 2 ] && { echo "usage: ${0##*/} <s3_bucket_path> <path_dirs..>"; exit 1; }
+[ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
+
+if [ "$1" == "--clean" ]; then
+  clean="yes"
+  shift
+else
+  clean="no"
+fi
 
 bucket="$1"
 shift
 
 for item in $*; do
   cd "${item}" || continue
+#echo \
   envdir ~/.config/envdir/duplicity/ \
     duplicity \
       --full-if-older-than 180D \
@@ -17,4 +25,12 @@ for item in $*; do
       --exclude '**.CVS' \
       ./ "${bucket}/`hostname`${PWD//\//_}"
 #-v6 --dry-run \
+  if [ "$clean" == "yes" ]; then
+#echo \
+    envdir ~/.config/envdir/duplicity/ \
+      duplicity \
+        remove-all-but-n-full 2 --force \
+        "${bucket}/`hostname`${PWD//\//_}"
+  fi
 done
+
