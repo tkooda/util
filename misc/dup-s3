@@ -1,0 +1,20 @@
+#!/bin/bash
+
+[ $# -lt 2 ] && { echo "usage: ${0##*/} <s3_bucket_path> <path_dirs..>"; exit 1; }
+
+bucket="$1"
+shift
+
+for item in $*; do
+  cd "${item}" || continue
+  envdir ~/.config/envdir/duplicity/ \
+    duplicity \
+      --full-if-older-than 180D \
+      --asynchronous-upload \
+      --volsize 100 \
+      --exclude '**.svn' \
+      --exclude '**.git' \
+      --exclude '**.CVS' \
+      ./ "${bucket}/`hostname`${PWD//\//_}"
+#-v6 --dry-run \
+done

@@ -118,8 +118,13 @@ for f in sys.argv[ 1: ]:
                     break
         
 #        print "OrigStr:", component.vevent.dtstart.value
-        print "Orig:  %s  (%s)" % ( get_datetime( component.vevent.dtstart.value, convert_to_local_tz = False ),
-                                   component.vevent.dtstart.value )
+        try:
+            print "Orig:  %s  (%s)" % ( get_datetime( component.vevent.dtstart.value, convert_to_local_tz = False ),
+                                        component.vevent.dtstart.value )
+        except:
+            print "Orig: ERROR:", component.vevent.dtstart.value
+            pass
+        
 #        print
         print "Start:", get_datetime( component.vevent.dtstart.value, when = True )
         print "End:  ", get_datetime( component.vevent.dtend.value )
