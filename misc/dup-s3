@@ -1,0 +1,48 @@
+#!/bin/bash
+
+## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs.
+
+## NOTE: duplicity will mark dirs/files as deleted from the archive if you remove dirs from the arg list
+
+
+[ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
+
+which chpst 2>/dev/null || { echo "ERROR: missing 'chpst' binary from 'runit' package:  sudo apt-get install runit"; exit 2; }
+
+if [ "$1" == "--clean" ]; then
+  clean="yes"
+  shift
+else
+  clean="no"
+fi
+
+bucket="$1"
+shift
+
+for item in $*; do
+  cd "${item}" || continue
+  echo "syncing ${item} to ${bucket} .."
+#echo \
+  chpst \
+    -L /tmp/.lock.dup-s3.${PWD//\//_} \
+    -e ~/.config/envdir/duplicity/ \
+      duplicity \
+        --full-if-older-than 180D \
+        --asynchronous-upload \
+        --volsize 100 \
+        --exclude '**.svn' \
+        --exclude '**.git' \
+        --exclude '**.CVS' \
+        ./ "${bucket}/`hostname`${PWD//\//_}"
+#-v6 --dry-run \
+  if [ "$clean" == "yes" ]; then
+#echo \
+  chpst \
+    -L /tmp/.lock.dup-s3.${PWD//\//_} \
+    -e ~/.config/envdir/duplicity/ \
+      duplicity \
+        remove-all-but-n-full 2 --force \
+        "${bucket}/`hostname`${PWD//\//_}"
+  fi
+done
+
