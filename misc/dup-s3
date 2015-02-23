@@ -26,6 +26,7 @@ for item in $*; do
   chpst \
     -L /tmp/.lock.dup-s3.${PWD//\//_} \
     -e ~/.config/envdir/duplicity/ \
+      nice -n19 \
       duplicity \
         --full-if-older-than 180D \
         --asynchronous-upload \
@@ -40,6 +41,7 @@ for item in $*; do
   chpst \
     -L /tmp/.lock.dup-s3.${PWD//\//_} \
     -e ~/.config/envdir/duplicity/ \
+      nice -n19 \
       duplicity \
         remove-all-but-n-full 2 --force \
         "${bucket}/`hostname`${PWD//\//_}"
