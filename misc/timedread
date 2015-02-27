@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 ## tkooda : 2008-05-15 : read data from stdin, print it as soon as we haven't gotten any more data from stdin for $TIMEOUT seconds (for use in bash scripts that need input (e.g. a url dragged from a browser window), that dosn't have a carrige return at the end of it
+## tkooda : 2014-08-12 : modify exception for Ubuntu 14.04.1
+
 
 import os
 import sys
@@ -15,6 +17,15 @@ def bail( str, err = 1 ):
     sys.stderr.write( str )
     sys.exit( err )
 
+
+def handler( signum, frame ):
+## tkooda : 2014-08-12 : modify for Ubuntu 14.04.1
+##    return
+    if not buf:
+        return
+    sys.exit( 0 ) # throws error to exception catch
+
+
 if len(sys.argv) != 1:
     bail( "usage: %s\n" % sys.argv[0] )
 
@@ -22,9 +33,6 @@ try:
     timeout = int( os.environ.get( "TIMEDREAD_TIMEOUT" ) )
 except:
     timeout = 1
-
-def handler( signum, frame ):
-    return
 
 fd = sys.stdin.fileno()
 attr_old = termios.tcgetattr(fd)
@@ -36,7 +44,9 @@ while True:
     signal.alarm( timeout )
     try:
         buf += sys.stdin.read(1) # will block
-    except IOError:
+## tkooda : 2014-08-12 : modify for Ubuntu 14.04.1: is not IOError anymore with the sys.exit(0) call in the handler
+##    except IOError:
+    except:
         buf = "".join( char for char in buf if char in string.printable )
         if not buf:
             continue
