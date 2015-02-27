@@ -2,7 +2,11 @@
 
 ## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs.
 
-## NOTE: duplicity will mark dirs/files as deleted from the archive if you remove dirs from the arg list
+## NOTE: duplicity will mark dirs/files as deleted from the archive if you remo
+ve dirs from the arg list
+
+## NOTE: set  DUPLICITY_ARGS="-v6 --dry-run"   for debugging
+
 
 
 [ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
@@ -32,6 +36,7 @@ for item in $*; do
     -e ~/.config/envdir/duplicity/ \
       nice -n19 \
       duplicity \
+        ${DUPLICITY_ARGS} \
         --full-if-older-than 180D \
         --asynchronous-upload \
         --volsize 100 \
@@ -39,7 +44,6 @@ for item in $*; do
         --exclude '**.git' \
         --exclude '**.CVS' \
         ./ "${bucket}/`hostname`${PWD//\//_}"
-#-v6 --dry-run \
   if [ "$clean" == "yes" ]; then
 #echo \
   chpst \
@@ -48,6 +52,7 @@ for item in $*; do
       nice -n19 \
       duplicity \
         remove-all-but-n-full 2 --force \
+        ${DUPLICITY_ARGS} \
         "${bucket}/`hostname`${PWD//\//_}"
   fi
 done
