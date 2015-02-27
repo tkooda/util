@@ -1,12 +1,16 @@
 #!/bin/bash
 
-## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs.
+## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs to backup
 
-## NOTE: duplicity will mark dirs/files as deleted from the archive if you remo
-ve dirs from the arg list
 
-## NOTE: set  DUPLICITY_ARGS="-v6 --dry-run"   for debugging
+## NOTE: duplicity will mark dirs/files as deleted from the archive if you remove dirs from it's arg list, so we upload each directory argument on the command line separately
 
+## OPTIONS:
+##  - configs to into ~/.config/envdir/duplicity/{PASSPHRASE,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY}
+##  - set  DUPLICITY_ARGS="-v6 --dry-run"   for debugging
+##  - set  DUPLICITY_FULL_IF_OLDER_THAN="180D"
+##  - set  DUPLICITY_VOLSIZE="250"
+##  - set  DUPLICITY_REMOVE_ALL_BUT_N_FULL="2"
 
 
 [ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
@@ -37,9 +41,9 @@ for item in $*; do
       nice -n19 \
       duplicity \
         ${DUPLICITY_ARGS} \
-        --full-if-older-than 180D \
+        --full-if-older-than ${DUPLICITY_FULL_IF_OLDER_THAN:-180D} \
         --asynchronous-upload \
-        --volsize 100 \
+        --volsize ${DUPLICITY_VOLSIZE:-250} \
         --exclude '**.svn' \
         --exclude '**.git' \
         --exclude '**.CVS' \
@@ -51,7 +55,7 @@ for item in $*; do
     -e ~/.config/envdir/duplicity/ \
       nice -n19 \
       duplicity \
-        remove-all-but-n-full 2 --force \
+        remove-all-but-n-full ${DUPLICITY_REMOVE_ALL_BUT_N_FULL:-2} --force \
         ${DUPLICITY_ARGS} \
         "${bucket}/`hostname`${PWD//\//_}"
   fi
