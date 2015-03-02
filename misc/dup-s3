@@ -48,7 +48,7 @@ for item in $*; do
         --exclude '**.svn' \
         --exclude '**.git' \
         --exclude '**.CVS' \
-        ./ "${bucket}/`hostname`${PWD//\//_}"
+        ./ "${bucket}/`hostname`${PWD//\//_}" 2>&1
   if [ "$clean" == "yes" ]; then
 #echo \
   chpst \
@@ -58,7 +58,7 @@ for item in $*; do
       duplicity \
         remove-all-but-n-full ${DUPLICITY_REMOVE_ALL_BUT_N_FULL:-2} --force \
         ${DUPLICITY_ARGS} \
-        "${bucket}/`hostname`${PWD//\//_}"
+        "${bucket}/`hostname`${PWD//\//_}" 2>&1
   fi
   echo
 done
