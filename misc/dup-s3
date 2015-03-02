@@ -33,6 +33,7 @@ shift
 
 for item in $*; do
   cd "${item}" || continue
+  echo "#################################################"
   echo "syncing ${item} to ${bucket} .."
 #echo \
   chpst \
@@ -59,5 +60,6 @@ for item in $*; do
         ${DUPLICITY_ARGS} \
         "${bucket}/`hostname`${PWD//\//_}"
   fi
+  echo
 done
 
