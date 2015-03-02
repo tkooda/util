@@ -15,7 +15,7 @@
 
 [ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
 
-which chpst 2>/dev/null || { echo "ERROR: missing 'chpst' binary from 'runit' package:  sudo apt-get install runit"; exit 2; }
+which chpst >/dev/null 2>/dev/null || { echo "ERROR: missing 'chpst' binary from 'runit' package:  sudo apt-get install runit"; exit 2; }
 
 for var in PASSPHRASE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
   [ -f ~/.config/envdir/duplicity/$var ] || { echo "ERROR: missing ~/.config/envdir/duplicity/$var"; exit 3; }
@@ -33,7 +33,8 @@ shift
 
 for item in $*; do
   cd "${item}" || continue
-  echo "syncing ${item} to ${bucket} .."
+  echo "#################################################"
+  echo "[ syncing ${item} to ${bucket} .. ]"
 #echo \
   chpst \
     -L /tmp/.lock.dup-s3.${PWD//\//_} \
@@ -47,7 +48,7 @@ for item in $*; do
         --exclude '**.svn' \
         --exclude '**.git' \
         --exclude '**.CVS' \
-        ./ "${bucket}/`hostname`${PWD//\//_}"
+        ./ "${bucket}/`hostname`${PWD//\//_}" 2>&1
   if [ "$clean" == "yes" ]; then
 #echo \
   chpst \
@@ -57,7 +58,8 @@ for item in $*; do
       duplicity \
         remove-all-but-n-full ${DUPLICITY_REMOVE_ALL_BUT_N_FULL:-2} --force \
         ${DUPLICITY_ARGS} \
-        "${bucket}/`hostname`${PWD//\//_}"
+        "${bucket}/`hostname`${PWD//\//_}" 2>&1
   fi
+  echo
 done
 
