@@ -1,81 +1,123 @@
-#!/bin/bash
+#!/usr/bin/python
 
 ## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs to backup
+## tkooda : 2015-03-06 : rewrote in python because escaping optional duplicity args in bash was a mess
+
+## EXAMPLE USAGE:
+##   dup-s3 --dry-run --exclude '**.git' s3+http://my-s3-bucket/my-machine-name /some/files/ /more/stuff/
 
 
-## NOTE: duplicity will mark dirs/files as deleted from the archive if you remove dirs from it's arg list, so we upload each directory argument on the command line separately
-
-## OPTIONS:
-##  - configs to into ~/.config/envdir/duplicity/{PASSPHRASE,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY}
-##  - set  DUPLICITY_ARGS="-v6 --dry-run"   for debugging
-##  - set  DUPLICITY_FULL_IF_OLDER_THAN="180D"
-##  - set  DUPLICITY_VOLSIZE="250"
-##  - set  DUPLICITY_REMOVE_ALL_BUT_N_FULL="2"
+## NOTE: duplicity will mark dirs/files as deleted from the archive if you remove dirs from it's own arg list, so we upload each directory argument on the command line separately
 
 
-[ $# -lt 2 ] && { echo -e "usage: ${0##*/} [--clean] <s3_bucket_path> <path_dirs..>\n e.g.: ${0##*/} --clean s3+http://my-bucket-name/my-device-dir ~/.ssh/ ~/bin/"; exit 1; }
-
-which chpst >/dev/null 2>/dev/null || { echo "ERROR: missing 'chpst' binary from 'runit' package:  sudo apt-get install runit"; exit 2; }
-
-## check config..
-for var in PASSPHRASE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
-  [ -f ~/.config/envdir/duplicity/$var ] || { echo "ERROR: missing ~/.config/envdir/duplicity/$var"; exit 3; }
-done
-
-## print config..
-[ -n "${DUPLICITY_ENVDIR}" ] && { echo "CONFIG: DUPLICITY_ENVDIR = ${DUPLICITY_ENVDIR}"; }
-for var in DUPLICITY_ARGS_UPLOAD_PRE DUPLICITY_ARGS_UPLOAD_POST \
-    DUPLICITY_ARGS_CLEAN_PRE DUPLICITY_ARGS_CLEAN_POST \
-    DUPLICITY_VOLSIZE DUPLICITY_FULL_IF_OLDER_THAN \
-    DUPLICITY_REMOVE_ALL_BUT_N_FULL ; do
-  val="`grep -v '^#' ~/.config/envdir/duplicity/${var} 2>/dev/null`"
-  [ -n "${val}" ] && { echo "CONFIG: ${var} = ${val}"; }
-done
+from __future__ import print_function
+import os
+import re
+import sys
+import fcntl
+import argparse
+import subprocess
+import socket # for gethostname()
+import envdir # pip install envdir
 
 
-## parse config arg..
-if [ "$1" == "--clean" ]; then
-  clean="yes"
-  shift
-else
-  clean="no"
-fi
-
-bucket="$1"
-shift
+def debug( level, *objs ):
+	try:
+		if level <= int( os.getenv( "DEBUG" ) ):
+			print( "DEBUG(%d):" % level, *objs, file=sys.stderr )
+			sys.stderr.flush()
+	except:
+		pass
 
 
-for item in "$@"; do
-  cd "${item}" || continue
-  echo "#################################################"
-  echo "[ syncing ${item} to ${bucket} .. ]"
-#echo \
-  chpst \
-    -L "/tmp/.lock.dup-s3.${PWD//[\/ ]/_}" \
-    -e ${DUPLICITY_ENVDIR:-~/.config/envdir/duplicity/} \
-      nice -n19 \
-      duplicity \
-        ${DUPLICITY_ARGS_UPLOAD_PRE} \
-        --full-if-older-than ${DUPLICITY_FULL_IF_OLDER_THAN:-180D} \
-        --asynchronous-upload \
-        --volsize ${DUPLICITY_VOLSIZE:-250} \
-        --exclude '**.svn' \
-        --exclude '**.git' \
-        --exclude '**.CVS' \
-        ${DUPLICITY_ARGS_UPLOAD_POST} \
-        ./ "${bucket}/`hostname`${PWD//[\/ ]/_}" 2>&1
-  if [ "$clean" == "yes" ]; then
-#echo \
-  chpst \
-    -L "/tmp/.lock.dup-s3.${PWD//[\/ ]/_}" \
-    -e ${DUPLICITY_ENVDIR:-~/.config/envdir/duplicity/} \
-      nice -n19 \
-      duplicity \
-        ${DUPLICITY_ARGS_CLEAN_PRE} \
-        remove-all-but-n-full ${DUPLICITY_REMOVE_ALL_BUT_N_FULL:-2} --force \
-        ${DUPLICITY_ARGS_CLEAN_POST} \
-        "${bucket}/`hostname`${PWD//[\/ ]/_}" 2>&1
-  fi
-  echo
-done
+def do_backup( args, path_dir ):
+	print( "[ backing up '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
+	debug( 9, "do_backup(): args:", args )
+	
+	cmd = [ "duplicity",
+		"--asynchronous-upload",
+		"--full-if-older-than", args[ "full_if_older_than" ],
+		"--volsize", args[ "volsize" ],
+		]
+	if args.get( "dry_run" ):
+		cmd += [ "--dry-run" ]
+	for a in args[ "exclude" ] or []:
+		cmd += "--exclude", a # optional excludes override includes
+	for a in args[ "include" ] or []:
+		cmd += "--include", a # optional includes specify specific patterns
+	if args[ "include" ]:
+		cmd += "--exclude", "**" # includes imply a trailing exclude
+	cmd += "./", "%(s3_bucket_path)s/%(hostname)s%(bucket_subdir)s" % args
+	debug( 9, "do_backup(): cmd:", cmd )
+	
+	subprocess.call( cmd, stderr=sys.stdout )
+	print( "" )
+
+
+def do_clean( args, path_dir ):
+	print( "[ cleaning '%s' on '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
+	
+	cmd = [ "duplicity" ]
+	if args.get( "dry_run" ):
+		cmd += [ "--dry-run" ]
+	cmd += [ "remove-all-but-n-full", args[ "remove_all_but_n_full" ], "--force",
+		"%(s3_bucket_path)s/%(hostname)s%(bucket_subdir)s" % args ]
+	
+	debug( 9, "do_clean(): cmd:", cmd )
+	
+	subprocess.call( cmd, stderr=sys.stdout )
+	print( "" )
+
+
+
+## get config from envdir..
+path_envdir = os.getenv( "DUPLICITY_ENVDIR", "~/.config/envdir/duplicity/" )
+try:
+	envdir.open( path_envdir )
+except:
+	print( "ERROR: invalid envdir config dir:", path_envdir, file=sys.stderr )
+	sys.exit( 2 )
+
+
+## parse args..
+parser = argparse.ArgumentParser( description='Use duplicity to backup directories to S3.')
+parser.add_argument( '--dry-run', default=False, action='store_true', help="Don't actually do anything")
+parser.add_argument( '--full-if-older-than', default='180D', action='store', help='BACKUP: Force full backup if last full is oder than X')
+parser.add_argument( '--volsize', default='250', action='store', help='BACKUP: Set volume size')
+parser.add_argument( '--exclude', action='append', help='BACKUP: excludes (before includes)')
+parser.add_argument( '--include', action='append', help='BACKUP: includes (after excludes; imples --exclude "**" )')
+parser.add_argument( '--clean', default=False, action='store_true', help='CLEAN: Clean old full backups off S3')
+parser.add_argument( '--remove-all-but-n-full', default='2', action='store', help='CLEAN: Remove all but N full')
+parser.add_argument( 's3_bucket_path', action='store', help='e.g.: s3+http://my-bucket-name/my-device-dir')
+parser.add_argument( 'dir_to_backup', action='store', nargs='+' )
+args = vars( parser.parse_args() )
+args[ "hostname" ] = socket.gethostname()
+debug( 0, "ARGS:", args )
+
+
+for path_dir in args[ "dir_to_backup" ]:
+	path_dir = os.path.normpath( path_dir ) # remove any extra slashes
+	try:
+		print( "#################################################" )
+		
+		os.chdir( path_dir )
+		
+		path_safe = re.sub( "[^a-z0-9]", "_", path_dir, flags=re.I )
+		path_lock = os.path.join( "/tmp/.lock.dup-s3.%s" % path_safe )
+		with open( path_lock, "a+" ) as fd: # create but do not trunicate
+			fcntl.flock( fd, fcntl.LOCK_EX | fcntl.LOCK_NB ) # attempt exclusive lock
+			
+			args[ "bucket_subdir" ] = path_safe
+			
+			do_backup( args, path_dir )
+			if args[ "clean" ]:
+				do_clean( args, path_dir )
+			
+			fcntl.flock( fd, fcntl.LOCK_UN ) # release lock
+		
+	except OSError as e:
+		print( "ERROR:", e ) # os.chdir()
+	except IOError:
+		print( "ERROR: existing process already has lock on file:", path_lock )
+	print( "" )
 
