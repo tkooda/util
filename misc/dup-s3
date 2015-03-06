@@ -17,10 +17,23 @@
 
 which chpst >/dev/null 2>/dev/null || { echo "ERROR: missing 'chpst' binary from 'runit' package:  sudo apt-get install runit"; exit 2; }
 
+## check config..
 for var in PASSPHRASE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
   [ -f ~/.config/envdir/duplicity/$var ] || { echo "ERROR: missing ~/.config/envdir/duplicity/$var"; exit 3; }
 done
 
+## print config..
+[ -n "${DUPLICITY_ENVDIR}" ] && { echo "CONFIG: DUPLICITY_ENVDIR = ${DUPLICITY_ENVDIR}"; }
+for var in DUPLICITY_ARGS_UPLOAD_PRE DUPLICITY_ARGS_UPLOAD_POST \
+    DUPLICITY_ARGS_CLEAN_PRE DUPLICITY_ARGS_CLEAN_POST \
+    DUPLICITY_VOLSIZE DUPLICITY_FULL_IF_OLDER_THAN \
+    DUPLICITY_REMOVE_ALL_BUT_N_FULL ; do
+  val="`grep -v '^#' ~/.config/envdir/duplicity/${var} 2>/dev/null`"
+  [ -n "${val}" ] && { echo "CONFIG: ${var} = ${val}"; }
+done
+
+
+## parse config arg..
 if [ "$1" == "--clean" ]; then
   clean="yes"
   shift
@@ -31,34 +44,37 @@ fi
 bucket="$1"
 shift
 
+
 for item in "$@"; do
   cd "${item}" || continue
   echo "#################################################"
   echo "[ syncing ${item} to ${bucket} .. ]"
 #echo \
   chpst \
-    -L /tmp/.lock.dup-s3.${PWD//\//_} \
-    -e ~/.config/envdir/duplicity/ \
+    -L "/tmp/.lock.dup-s3.${PWD//[\/ ]/_}" \
+    -e ${DUPLICITY_ENVDIR:-~/.config/envdir/duplicity/} \
       nice -n19 \
       duplicity \
-        ${DUPLICITY_ARGS} \
+        ${DUPLICITY_ARGS_UPLOAD_PRE} \
         --full-if-older-than ${DUPLICITY_FULL_IF_OLDER_THAN:-180D} \
         --asynchronous-upload \
         --volsize ${DUPLICITY_VOLSIZE:-250} \
         --exclude '**.svn' \
         --exclude '**.git' \
         --exclude '**.CVS' \
-        ./ "${bucket}/`hostname`${PWD//\//_}" 2>&1
+        ${DUPLICITY_ARGS_UPLOAD_POST} \
+        ./ "${bucket}/`hostname`${PWD//[\/ ]/_}" 2>&1
   if [ "$clean" == "yes" ]; then
 #echo \
   chpst \
-    -L /tmp/.lock.dup-s3.${PWD//\//_} \
-    -e ~/.config/envdir/duplicity/ \
+    -L "/tmp/.lock.dup-s3.${PWD//[\/ ]/_}" \
+    -e ${DUPLICITY_ENVDIR:-~/.config/envdir/duplicity/} \
       nice -n19 \
       duplicity \
+        ${DUPLICITY_ARGS_CLEAN_PRE} \
         remove-all-but-n-full ${DUPLICITY_REMOVE_ALL_BUT_N_FULL:-2} --force \
-        ${DUPLICITY_ARGS} \
-        "${bucket}/`hostname`${PWD//\//_}" 2>&1
+        ${DUPLICITY_ARGS_CLEAN_POST} \
+        "${bucket}/`hostname`${PWD//[\/ ]/_}" 2>&1
   fi
   echo
 done
