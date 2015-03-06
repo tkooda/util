@@ -55,7 +55,7 @@ def do_backup( args, path_dir ):
 
 
 def do_clean( args, path_dir ):
-	print( "[ cleaning '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
+	print( "[ cleaning '%s' on '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
 	
 	cmd = [ "duplicity" ]
 	if args.get( "dry_run" ):
