@@ -31,7 +31,7 @@ fi
 bucket="$1"
 shift
 
-for item in $*; do
+for item in "$@"; do
   cd "${item}" || continue
   echo "#################################################"
   echo "[ syncing ${item} to ${bucket} .. ]"
