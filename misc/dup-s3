@@ -52,6 +52,7 @@ def do_backup( args, path_dir ):
 	
 	subprocess.call( cmd, stderr=sys.stdout )
 	print( "" )
+	sys.stdout.flush()
 
 
 def do_clean( args, path_dir ):
@@ -67,6 +68,7 @@ def do_clean( args, path_dir ):
 	
 	subprocess.call( cmd, stderr=sys.stdout )
 	print( "" )
+	sys.stdout.flush()
 
 
 
