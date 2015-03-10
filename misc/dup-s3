@@ -50,6 +50,7 @@ def do_backup( args, path_dir ):
 	cmd += "./", "%(s3_bucket_path)s/%(hostname)s%(bucket_subdir)s" % args
 	debug( 9, "do_backup(): cmd:", cmd )
 	
+	sys.stdout.flush()
 	subprocess.call( cmd, stderr=subprocess.STDOUT )
 	print( "" )
 	sys.stdout.flush()
@@ -66,6 +67,7 @@ def do_clean( args, path_dir ):
 	
 	debug( 9, "do_clean(): cmd:", cmd )
 	
+	sys.stdout.flush()
 	subprocess.call( cmd, stderr=subprocess.STDOUT )
 	print( "" )
 	sys.stdout.flush()
