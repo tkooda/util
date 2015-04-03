@@ -103,7 +103,7 @@ while True:
 print # mutt ignores first line
 for user in users:
   try:
-    print "%s\t%s\t(%s)" % ( user['primaryEmail'], user['name']['fullName'], user['organizations'][0]['title'] )
+    print "%s\t%s\t%s" % ( user['primaryEmail'], user['name']['fullName'], user['organizations'][0]['title'] )
   except:
     print "%s\t%s" % ( user['primaryEmail'], user['name']['fullName'] )
     pass
