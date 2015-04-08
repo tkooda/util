@@ -30,6 +30,23 @@ def debug( level, *objs ):
         pass
 
 
+def create_google_mx( args, conn, zone_name ):
+    debug( 1, "create_google_mx():", zone_name )
+        
+    changes = boto.route53.record.ResourceRecordSets( connection = conn,
+                                                      hosted_zone_id = zone_id )
+    change = changes.add_change( "CREATE", zone_name, "MX", ttl=args[ "ttl" ] )
+    for mx in [ "1 aspmx.l.google.com",
+                "5 alt1.aspmx.l.google.com",
+                "5 alt2.aspmx.l.google.com",
+                "10 aspmx2.googlemail.com",
+                "10 aspmx3.googlemail.com" ]:
+        change.add_value( mx )
+    result = changes.commit()
+    print( result, file=sys.stderr )
+    sys.exit( 0 )
+
+
 RR_TYPES = [ "A", "AAAA", "CNAME", "MX", "PTR", "SPF", "SRV", "TXT", "NS" ] # removed SOA capability
 
 # parse args..
@@ -39,6 +56,7 @@ parser.add_argument( '--profile', required=True, action='store', help='profile t
 
 parser.add_argument( '--list-zones', default=False, action='store_true', help="List all hosted zones" )
 parser.add_argument( '--create-zone', default=False, action='store_true', help="Create a new hosted zone" ) # specify zone_name with --zone
+parser.add_argument( '--create-google-mx', default=False, action='store_true', help="Create google MX records" ) # specify zone_name with --zone
 parser.add_argument( '--zone-comment', default="", action='store', help="Specify hosted zone comment (for --create-zone)" )
 parser.add_argument( '--zone', action='store', help="Specify hosted zone by name" )
 parser.add_argument( '--type', action='store', choices=RR_TYPES, help="Specify resource record type" )
@@ -73,13 +91,13 @@ elif args[ "zone" ]:
             sys.exit( 3 )
         
         debug( 1, "create_zone:", zone_name )
-#        zone = conn.create_zone( zone_name + "." )
-#        for ns in zone.get_nameservers():
-#            print( "%s\tNS\t%s" % ( zone_name, ns ) )
-        zone = conn.create_hosted_zone( zone_name, comment = args.get( "zone_comment" ) )
-#        pp.pprint( zone )
-        for ns in zone[ "CreateHostedZoneResponse" ][ "DelegationSet" ][ "NameServers" ]:
+        zone_dict = conn.create_hosted_zone( zone_name, comment = args.get( "zone_comment" ) )
+        for ns in zone_dict[ "CreateHostedZoneResponse" ][ "DelegationSet" ][ "NameServers" ]:
             print( "%s\tNS\t%s" % ( zone_name, ns ) )
+        
+        if args.get( "create_google_mx" ):
+            create_google_mx( args, conn, zone_name )
+        
         sys.exit( 0 )
     else:
         try:
@@ -88,6 +106,9 @@ elif args[ "zone" ]:
             print( "ERROR: non-existant zone:", zone_name, file=sys.stderr )
             sys.exit( 2 )
     
+    
+    if args.get( "create_google_mx" ):
+        create_google_mx( args, conn, zone_name )
     
     if args.get( "add" ):
         if not args[ "type" ]:
@@ -151,9 +172,7 @@ elif args[ "zone" ]:
                 continue
             if args[ "type" ] and rr_set.type != args[ "type" ]:
                 continue
-#            print( "%s\t%s\t%s" % ( rr_set.name, rr_set.type, rr_set.to_print() ) )
             for rr in rr_set.resource_records:
                 print( "%s\t%s\t%s\t%s" % ( rr_set.name, rr_set.type, rr, rr_set.ttl ) )
-#            print()
         
         
