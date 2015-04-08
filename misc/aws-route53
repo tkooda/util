@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-## 2015-04-05 : tkooda : simple script to interact with AWS
+## 2015-04-05 : tkooda : simple script to interact with AWS's Route53 DNS service
 
 ## TODO:
 ##  - check (and WARN) for existing conflicting record before commiting any changes (e.g. subdomain already has a matching record; or WARN: dest_host/ip is already used)
@@ -17,8 +17,8 @@ os.environ[ "BOTO_CONFIG" ] = os.path.expanduser( "~/.aws/config" )
 #import boto.route53
 import boto
 
-import pprint
-pp = pprint.PrettyPrinter( indent=4 )
+#import pprint
+#pp = pprint.PrettyPrinter( indent=4 )
 
 
 def debug( level, *objs ):
@@ -30,7 +30,7 @@ def debug( level, *objs ):
         pass
 
 
-RR_TYPES = [ "A", "AAAA", "CNAME", "MX", "PTR", "SPF", "SRV", "TXT" ] # removed NS, SOA capability
+RR_TYPES = [ "A", "AAAA", "CNAME", "MX", "PTR", "SPF", "SRV", "TXT", "NS" ] # removed SOA capability
 
 # parse args..
 parser = argparse.ArgumentParser( description='Use boto to communicate with AWS Route53.' )
@@ -38,6 +38,7 @@ parser.add_argument( '--profile', required=True, action='store', help='profile t
 #parser.add_argument( '--dry-run', default=False, action='store_true', help="Don't actually do anything" )
 
 parser.add_argument( '--list-zones', default=False, action='store_true', help="List all hosted zones" )
+parser.add_argument( '--create-zone', default=False, action='store_true', help="Create a new hosted zone" ) # specify zone_name with --zone
 parser.add_argument( '--zone', action='store', help="Specify hosted zone by name" )
 parser.add_argument( '--type', action='store', choices=RR_TYPES, help="Specify resource record type" )
 parser.add_argument( '--ttl', action='store', type=int, default=3600, help="Specify resource record TTL" )
@@ -65,11 +66,27 @@ if args[ "list_zones" ]:
 
 elif args[ "zone" ]:
     zone_name = args[ "zone" ].rstrip( "." )
-    zone_id = conn.get_hosted_zone_by_name( zone_name )[ "GetHostedZoneResponse" ][ "HostedZone" ][ "Id" ].split( "/" )[2]
-
+    if args.get( "create_zone" ):
+        debug( 1, "create_zone:", zone_name )
+        zone = conn.create_zone( zone_name + "." )
+        for ns in zone.get_nameservers():
+            print( "%s\tNS\t%s" % ( zone_name, ns ) )
+        sys.exit( 0 )
+    else:
+        try:
+            zone_id = conn.get_hosted_zone_by_name( zone_name )[ "GetHostedZoneResponse" ][ "HostedZone" ][ "Id" ].split( "/" )[2]
+        except TypeError:
+            print( "ERROR: non-existant zone:", zone_name, file=sys.stderr )
+            sys.exit( 2 )
+    
+    
     if args.get( "add" ):
         if not args[ "type" ]:
             print( "ERROR: must specify record type", file=sys.stderr )
+            sys.exit( 2 )
+        
+        if args[ "type" ] == "NS":
+            print( "ERROR: let AWS create record type", file=sys.stderr )
             sys.exit( 2 )
         
         host = args[ "add" ][ 0 ].strip( "." )
@@ -117,7 +134,8 @@ elif args[ "zone" ]:
         change.add_value( dest )
         result = changes.commit()
         print( result, file=sys.stderr )
-
+        
+        
     else: # just filter output based on type
         for rr_set in conn.get_all_rrsets( zone_id ):
             if rr_set.type in [ "SOA" ]:
