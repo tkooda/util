@@ -17,8 +17,8 @@ os.environ[ "BOTO_CONFIG" ] = os.path.expanduser( "~/.aws/config" )
 #import boto.route53
 import boto
 
-#import pprint
-#pp = pprint.PrettyPrinter( indent=4 )
+import pprint
+pp = pprint.PrettyPrinter( indent=4 )
 
 
 def debug( level, *objs ):
@@ -39,6 +39,7 @@ parser.add_argument( '--profile', required=True, action='store', help='profile t
 
 parser.add_argument( '--list-zones', default=False, action='store_true', help="List all hosted zones" )
 parser.add_argument( '--create-zone', default=False, action='store_true', help="Create a new hosted zone" ) # specify zone_name with --zone
+parser.add_argument( '--zone-comment', default="", action='store', help="Specify hosted zone comment (for --create-zone)" )
 parser.add_argument( '--zone', action='store', help="Specify hosted zone by name" )
 parser.add_argument( '--type', action='store', choices=RR_TYPES, help="Specify resource record type" )
 parser.add_argument( '--ttl', action='store', type=int, default=3600, help="Specify resource record TTL" )
@@ -65,11 +66,19 @@ if args[ "list_zones" ]:
     sys.exit( 0 )
 
 elif args[ "zone" ]:
-    zone_name = args[ "zone" ].rstrip( "." )
+    zone_name = args[ "zone" ].rstrip( "." ) + "." # force trailing period
     if args.get( "create_zone" ):
+        if conn.get_hosted_zone_by_name( zone_name ):
+            print( "ERROR: hosted zone already exists:", zone_name, file=sys.stderr )
+            sys.exit( 3 )
+        
         debug( 1, "create_zone:", zone_name )
-        zone = conn.create_zone( zone_name + "." )
-        for ns in zone.get_nameservers():
+#        zone = conn.create_zone( zone_name + "." )
+#        for ns in zone.get_nameservers():
+#            print( "%s\tNS\t%s" % ( zone_name, ns ) )
+        zone = conn.create_hosted_zone( zone_name, comment = args.get( "zone_comment" ) )
+#        pp.pprint( zone )
+        for ns in zone[ "CreateHostedZoneResponse" ][ "DelegationSet" ][ "NameServers" ]:
             print( "%s\tNS\t%s" % ( zone_name, ns ) )
         sys.exit( 0 )
     else:
@@ -89,7 +98,7 @@ elif args[ "zone" ]:
             print( "ERROR: let AWS create record type", file=sys.stderr )
             sys.exit( 2 )
         
-        host = args[ "add" ][ 0 ].strip( "." )
+        host = args[ "add" ][ 0 ].strip( "." ) + "."
         dest = args[ "add" ][ 1 ]
         
         if not host.endswith( zone_name ):
@@ -115,7 +124,7 @@ elif args[ "zone" ]:
             print( "ERROR: must specify record type", file=sys.stderr )
             sys.exit( 2 )
         
-        host = args[ "delete" ][ 0 ].strip( "." )
+        host = args[ "delete" ][ 0 ].strip( "." ) + "."
         dest = args[ "delete" ][ 1 ]
         
         if not host.endswith( zone_name ):
