@@ -57,7 +57,7 @@ parser.add_argument( '--profile', required=True, action='store', help='profile t
 parser.add_argument( '--list-zones', default=False, action='store_true', help="List all hosted zones" )
 parser.add_argument( '--create-zone', default=False, action='store_true', help="Create a new hosted zone" ) # specify zone_name with --zone
 parser.add_argument( '--create-google-mx', default=False, action='store_true', help="Create google MX records" ) # specify zone_name with --zone
-parser.add_argument( '--zone-comment', default="", action='store', help="Specify hosted zone comment (for --create-zone)" )
+parser.add_argument( '--comment', default="", action='store', help="Specify comment" )
 parser.add_argument( '--zone', action='store', help="Specify hosted zone by name" )
 parser.add_argument( '--type', action='store', choices=RR_TYPES, help="Specify resource record type" )
 parser.add_argument( '--ttl', action='store', type=int, default=3600, help="Specify resource record TTL" )
@@ -91,7 +91,7 @@ elif args[ "zone" ]:
             sys.exit( 3 )
         
         debug( 1, "create_zone:", zone_name )
-        zone_dict = conn.create_hosted_zone( zone_name, comment = args.get( "zone_comment" ) )
+        zone_dict = conn.create_hosted_zone( zone_name, comment = args.get( "comment" ) )
         for ns in zone_dict[ "CreateHostedZoneResponse" ][ "DelegationSet" ][ "NameServers" ]:
             print( "%s\tNS\t%s" % ( zone_name, ns ) )
         
@@ -126,9 +126,12 @@ elif args[ "zone" ]:
             host = host + "." + zone_name
         
         if args[ "type" ] in [ "A", "PTR", "" ]:
-            if not re.match( "^\d\.\d\.\d\.\d$", dest ):
-                print( "ERROR: invalid IP address:", dest, file=sys.stderr )
+            if not re.match( "^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", dest ):
+                print( "ERROR: invalid IP address: '%s'" % dest, file=sys.stderr )
                 sys.exit( 2 )
+        
+        if args[ "type" ] == "TXT":
+            dest = '"' + dest + '"' # TXT records require surrounding double-quotes on AWS route53
         
         debug( 1, "add:", host, args[ "type" ], dest, args[ "ttl" ] )
         
@@ -152,15 +155,22 @@ elif args[ "zone" ]:
             host = host + "." + zone_name
         
         if args[ "type" ] in [ "A", "PTR", "" ]:
-            if not re.match( "^\d\.\d\.\d\.\d$", dest ):
-                print( "ERROR: invalid IP address:", dest, file=sys.stderr )
+            if not re.match( "^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", dest ):
+                print( "ERROR: invalid IP address: '%s'" % dest, file=sys.stderr )
                 sys.exit( 2 )
         
         debug( 1, "delete:", host, args[ "type" ], dest, args[ "ttl" ] )
         
         changes = boto.route53.record.ResourceRecordSets( connection = conn,
                                                           hosted_zone_id = zone_id )
-        change = changes.add_change( "DELETE", host, args[ "type" ], ttl = args[ "ttl" ] )
+        
+        
+        
+        print( "WARNING:  IS THIS UNIQUE ENOUGH FOR MULTIPLE A-RECORDS???", file=sys.stderr )
+        
+        
+        
+        change = changes.add_change( "DELETE", host, args[ "type" ], ttl = args[ "ttl" ], comment = args[ "comment" ] )
         change.add_value( dest )
         result = changes.commit()
         print( result, file=sys.stderr )
