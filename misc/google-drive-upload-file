@@ -9,6 +9,8 @@
 ## USAGE:
 ##  google-drive-upload-file jdoe@gmail.com /path/to/local/file
 
+## e.g. at session startup:  bash -c 'while sleep 1; do inotifywait -e DELETE_SELF ~/keepass.kdbx; sleep 1; HOME=/home/jdoe /usr/local/git/util/bin/google-drive-upload-file jdoe@gmail.com /home/jdoe/keepass.kdbx; done 2>&1 > /tmp/log.google-drive-keepass.`date +%s`.log'
+
 
 ## REQUIRED:
 ##  - sudo pip install PyDrive
