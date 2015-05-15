@@ -127,16 +127,20 @@ def parent_paths( list_items, list_item_id ):
     
     item = get_item( list_items, list_item_id )
     
-    for parent_item in item[ "parents" ]:
-        if parent_item[ "isRoot" ]:
-            print "root hit"
-            list_parent_paths.append( "/" )
-        else:
-            print "no root hit"
-            for parent_path in parent_paths( list_items, parent_item[ "id" ] ):
-                print "pp:", parent_path
-                list_parent_paths.append( os.path.join( parent_path, item[ "title" ] ) )
-                print "cur parent paths:", list_parent_paths
+    try:
+        for parent_item in item[ "parents" ]:
+            if parent_item[ "isRoot" ]:
+                print "root hit"
+                list_parent_paths.append( "/" )
+            else:
+                print "no root hit"
+                for parent_path in parent_paths( list_items, parent_item[ "id" ] ):
+                    print "pp:", parent_path
+                    list_parent_paths.append( os.path.join( parent_path, item[ "title" ] ) )
+                    print "cur parent paths:", list_parent_paths
+    except:
+        print "ERROR: parent_paths() item:", item
+        pass
     
     return list_parent_paths
 
