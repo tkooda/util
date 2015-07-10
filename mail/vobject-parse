@@ -73,7 +73,12 @@ def get_datetime( dt, when = False, convert_to_local_tz = True ):
 #    else:
 #        print "DEBUG: convert_to_local_tz is NOT desired"
     
-    dt_str = dt.strftime("%A %m/%d/%Y @ %I:%M %p %z (%Z)")
+    try:
+        dt_str = dt.strftime("%A %m/%d/%Y @ %I:%M %p %z (%Z)")
+## tkooda : 2015-07-10 : date format from Microsoft Exchange Server 2010
+    except AttributeError:
+        dt_str = dt.strftime("%Y-%m-%d %H:%M:%S%z")
+        pass
     
     if when:
         dt_str += "  (%s)" % human_readable_when( dt )
