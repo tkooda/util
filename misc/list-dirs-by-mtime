@@ -1,0 +1,32 @@
+#!/usr/bin/python
+
+## tkooda : 2006-06-22 : list files in (argv) dirs sorted (globally) by mtime (do not traverse)
+
+import sys
+import os                           
+
+dir_info = []
+
+for arg in sys.argv[1:]:
+    if not os.path.isdir( arg ):
+        continue
+    for entry in os.listdir( arg ):
+        dpath = arg.rstrip( "/" ) + "/" + entry
+        try:
+            dir_info.append( [ os.path.getmtime( dpath ), dpath ] )
+        except:
+            print >>sys.stderr, "WARNING: missing:", dpath
+
+try:
+    reverse = int( os.getenv( "REVERSE" ) )
+except:
+    reverse = 0
+
+if reverse:
+    dir_info.sort(reverse=True)
+else:
+    dir_info.sort()
+
+for mtime, dpath in dir_info:
+    print dpath
+

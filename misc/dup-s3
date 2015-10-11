@@ -121,6 +121,11 @@ for path_dir in args[ "dir_to_backup" ]:
 		
 	except OSError as e:
 		print( "ERROR:", e ) # os.chdir()
+                import traceback
+                traceback.print_exc( file=sys.stderr )
+                sys.stderr.flush()
+                sys.exit( 1 )
+        
 	except IOError:
 		print( "ERROR: existing process already has lock on file:", path_lock )
 	print( "" )

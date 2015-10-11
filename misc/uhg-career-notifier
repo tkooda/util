@@ -1,0 +1,78 @@
+#!/usr/bin/python
+
+## 2015-05-14 : tkooda : check UHG website for new positions, send matches via email
+
+import os
+import sys
+import re
+import requests
+from BeautifulSoup import BeautifulSoup
+import hashlib
+from email.mime.text import MIMEText
+from subprocess import Popen, PIPE
+
+
+URL_BASE = "http://careers.unitedhealthgroup.com"
+URL = URL_BASE + "/search-jobs?kw=director&tc=0&lc=Minneapolis,%20MN&tr=0&sh=0&sch=0&pd=4&jf=7,14,20,32,46&jl=5,6&bs=0&so=0&sf=0"
+#print URL
+PATH_CACHE = os.path.expanduser( "~/.cache/uhg-career-notifier" )
+
+FROM = ""
+TO = ""
+CC = ""
+
+
+def send_mail( desc, link ):
+    print "SENDING: %s : %s" % ( desc, link )
+    
+    msg = MIMEText( "%s :\n\n%s\n" % ( desc, link ) )
+#    msg = MIMEText( desc ) # DEBUG
+    msg["From"] = FROM
+    msg["To"] = TO
+    msg["CC"] = CC
+    msg["Subject"] = "New UHG position: " + desc
+#    msg["Subject"] = "New UHG position" # DEBUG
+#    print msg.as_string() # DEBUG
+    
+    p = Popen( [ "/usr/bin/msmtp", "--read-envelope-from", "-a", FROM, TO, CC ], stdin=PIPE )
+    p.communicate( msg.as_string() )
+    
+    return True
+
+
+
+def handle_job( desc, link ):
+    h = hashlib.sha1( link ).hexdigest()
+    path_hash_file = os.path.join( PATH_CACHE, h )
+    if os.path.isfile( path_hash_file ):
+#        print "DEBUG: ignoring cache"
+        return
+    
+    if re.search( "dir", desc, re.I ): # director
+        if not send_mail( desc, link ):
+            print "ERROR: mail failed: %s : %s" % ( desc, link )
+            return
+    else:
+        print "IGNORING: %s : %s" % ( desc, link )
+    
+    if not os.path.isdir( PATH_CACHE ):
+        os.makedirs( PATH_CACHE )
+    
+    os.close( os.open( path_hash_file, os.O_CREAT ) ) # touch
+
+
+
+result = requests.get( URL, headers = { "User-Agent": "Mozilla/5.0 (compatible; IE 11.0; Win64; Trident/7.0)" }, verify=False )
+
+if result.status_code != 200:
+    print "HTTP Error:", result.status_code, URL
+    sys.exit( 2 )
+
+html = result.text.encode( "ascii", "ignore" )
+
+parsed_html = BeautifulSoup( html )
+
+for job in parsed_html.body( "div", attrs = { "class": "jobcontainer" } ):
+    a = job("a")[0]
+    handle_job( a.text, URL_BASE + a[ "href" ] )
+

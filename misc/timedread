@@ -17,6 +17,7 @@ def bail( str, err = 1 ):
     sys.stderr.write( str )
     sys.exit( err )
 
+<<<<<<< HEAD
 
 def handler( signum, frame ):
 ## tkooda : 2014-08-12 : modify for Ubuntu 14.04.1
@@ -28,6 +29,22 @@ def handler( signum, frame ):
 
 if len(sys.argv) != 1:
     bail( "usage: %s\n" % sys.argv[0] )
+=======
+def handler( signum, frame ):
+    global buf
+    if len( buf ) > 0: # new method
+        buf = "".join( char for char in buf if char in string.printable )
+        if not buf:
+            return
+        print buf.strip()
+        termios.tcsetattr( fd, termios.TCSANOW, attr_old )
+        sys.exit( 1 )
+    return
+
+
+if len( sys.argv ) != 1:
+    bail( "usage: %s\n" % sys.argv[ 0 ] )
+>>>>>>> 51f552eeea1d490ee2180fdf0f0be0b7e2c6d0fd
 
 try:
     timeout = int( os.environ.get( "TIMEDREAD_TIMEOUT" ) )
@@ -37,15 +54,16 @@ except:
 fd = sys.stdin.fileno()
 attr_old = termios.tcgetattr(fd)
 tty.setraw(fd)
-
 buf = ""
+
 while True:
     signal.signal( signal.SIGALRM, handler ) # set timeout
     signal.alarm( timeout )
     try:
+
         buf += sys.stdin.read(1) # will block
 ## tkooda : 2014-08-12 : modify for Ubuntu 14.04.1: is not IOError anymore with the sys.exit(0) call in the handler
-##    except IOError:
+##    except IOError: # old method
     except:
         buf = "".join( char for char in buf if char in string.printable )
         if not buf:
@@ -53,3 +71,4 @@ while True:
         termios.tcsetattr( fd, termios.TCSANOW, attr_old )
         print buf.strip()
         break
+
