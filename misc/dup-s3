@@ -47,7 +47,7 @@ def do_backup( args, path_dir ):
 		cmd += "--include", a # optional includes specify specific patterns
 	if args[ "include" ]:
 		cmd += "--exclude", "**" # includes imply a trailing exclude
-	cmd += "./", "%(s3_bucket_path)s/%(hostname)s%(bucket_subdir)s" % args
+	cmd += "./", "%(s3_bucket_path)s/%(hostname)s__%(bucket_subdir)s" % args
 	debug( 9, "do_backup(): cmd:", cmd )
 	
 	sys.stdout.flush()
