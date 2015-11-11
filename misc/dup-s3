@@ -106,7 +106,9 @@ for path_dir in args[ "dir_to_backup" ]:
 		
 		os.chdir( path_dir )
 		
-		path_safe = re.sub( "[^a-z0-9]", "_", path_dir, flags=re.I )
+## tkooda : 2015-11-11 : safe for python2.6
+##		path_safe = re.sub( "[^a-z0-9]", "_", path_dir, flags=re.I )
+		path_safe = re.sub( "[^a-zA-Z0-9]", "_", path_dir ).strip( "_" )
 		path_lock = os.path.join( "/tmp/.lock.dup-s3.%s" % path_safe )
 		with open( path_lock, "a+" ) as fd: # create but do not trunicate
 			fcntl.flock( fd, fcntl.LOCK_EX | fcntl.LOCK_NB ) # attempt exclusive lock
