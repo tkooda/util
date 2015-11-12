@@ -3,6 +3,9 @@
 ## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs to backup
 ## tkooda : 2015-03-06 : rewrote in python because escaping optional duplicity args in bash was a mess
 
+## from:  https://github.com/tkooda/util/blob/master/misc/dup-s3
+
+
 ## EXAMPLE USAGE:
 ##   dup-s3 --dry-run --exclude '**.git' s3+http://my-s3-bucket/my-machine-name /some/files/ /more/stuff/
 
