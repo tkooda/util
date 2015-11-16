@@ -1,0 +1,59 @@
+#!/bin/bash
+
+## tkooda : 2007-01-04 : backup a file/dir in place
+
+function bail { echo -e "$1"; exit 1; }
+
+function pick_unique { # optional extension as 2nd arg
+  u=/
+  count=0
+  while [ -e "${u}" ]; do
+    u="${1}.bak.`date +%F_%H%M%S`${2}"
+    if [ $count -gt 0 ]; then
+      u="${u}.`printf "%.2d" ${count}`${2}"
+    fi
+    let count++
+  done
+  echo "${u}"
+}
+
+function bak_file {
+  u="`pick_unique "${1}"`"
+  cp -a "${1}" "$u"
+}
+
+function bak_dir {
+  d="${1}"
+  if tar --usage |grep -q -- '--xz' ; then
+    u="`pick_unique "${d}" '.tar.xz'`"
+    tar cJf "${u}" "${d}" 2>&1 |grep -v '^tar: Removing leading'
+  elif tar --usage |grep -q -- '--bzip2' ; then
+    u="`pick_unique "${d}" '.tar.bz2'`"
+    tar cjf "${u}" "${d}" 2>&1 |grep -v '^tar: Removing leading'
+  elif tar --usage |grep -q -- '--gzip' ; then
+    u="`pick_unique "${d}" '.tar.gz'`"
+    tar czf "${u}" "${d}" 2>&1 |grep -v '^tar: Removing leading'
+  else
+    u="`pick_unique "${d}" '.tar'`"
+    tar cf "${u}" "${d}" 2>&1 |grep -v '^tar: Removing leading'
+  fi
+}
+
+[ $# -ge 1 ] || bail "usage: ${0##*/} <file/dir> [file/dir..]"
+
+which realpath >/dev/null 2>/dev/null || bail "error: missing 'realpath' binary"
+
+err=0
+for i in "${@}"; do
+  i="`realpath "${i}"`"
+  if [ -f "${i}" ]; then
+    bak_file "${i}" || let err++
+  elif [ -d "${i}" ]; then
+    bak_dir "${i}" || let err++
+  else
+    echo "error: invalid file/dir: ${i}" >&2
+    let err++
+  fi
+done
+
+exit ${err}
