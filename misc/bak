@@ -41,11 +41,17 @@ function bak_dir {
 
 [ $# -ge 1 ] || bail "usage: ${0##*/} <file/dir> [file/dir..]"
 
-which realpath >/dev/null 2>/dev/null || bail "error: missing 'realpath' binary"
+if which realpath >/dev/null 2>/dev/null; then
+  $rp_cmd='realpath'
+elif which readlink >/dev/null 2>/dev/null; then
+  $rp_cmd='readlink -e'
+else
+  bail "error: neither 'realpath' or 'readlink' command available"
+fi
 
 err=0
 for i in "${@}"; do
-  i="`realpath "${i}"`"
+  i="`${rp_cmd} "${i}"`"
   if [ -f "${i}" ]; then
     bak_file "${i}" || let err++
   elif [ -d "${i}" ]; then
