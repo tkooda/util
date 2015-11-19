@@ -42,9 +42,9 @@ function bak_dir {
 [ $# -ge 1 ] || bail "usage: ${0##*/} <file/dir> [file/dir..]"
 
 if which realpath >/dev/null 2>/dev/null; then
-  $rp_cmd='realpath'
+  rp_cmd='realpath'
 elif which readlink >/dev/null 2>/dev/null; then
-  $rp_cmd='readlink -e'
+  rp_cmd='readlink -e'
 else
   bail "error: neither 'realpath' or 'readlink' command available"
 fi
