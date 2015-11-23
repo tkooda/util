@@ -37,7 +37,7 @@ def do_backup( args, path_dir ):
 	print( "[ backing up '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
 	debug( 9, "do_backup(): args:", args )
 	
-	cmd = [ "duplicityX",
+	cmd = [ "duplicity",
 		"--asynchronous-upload",
 		"--full-if-older-than", args[ "full_if_older_than" ],
 		"--volsize", args[ "volsize" ],
