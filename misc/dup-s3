@@ -57,9 +57,11 @@ def do_backup( args, path_dir ):
         try:
                 subprocess.call( cmd, stderr=subprocess.STDOUT )
         except OSError, e:
-                print( e, file=sys.stderr )
-                print( "is duplicity installed?", file=sys.stderr )
-                sys.exit( 2 )
+                if e.errno == os.errno.ENOENT:
+                        print( "ERROR: 'duplicity' not installed", file=sys.stderr )
+                else:
+                        raise
+#                sys.exit( 2 )
 	print( "" )
 	sys.stdout.flush()
 
