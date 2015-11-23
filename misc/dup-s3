@@ -37,7 +37,7 @@ def do_backup( args, path_dir ):
 	print( "[ backing up '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
 	debug( 9, "do_backup(): args:", args )
 	
-	cmd = [ "duplicity",
+	cmd = [ "duplicityX",
 		"--asynchronous-upload",
 		"--full-if-older-than", args[ "full_if_older_than" ],
 		"--volsize", args[ "volsize" ],
@@ -54,7 +54,12 @@ def do_backup( args, path_dir ):
 	debug( 9, "do_backup(): cmd:", cmd )
 	
 	sys.stdout.flush()
-	subprocess.call( cmd, stderr=subprocess.STDOUT )
+        try:
+                subprocess.call( cmd, stderr=subprocess.STDOUT )
+        except OSError, e:
+                print( e, file=sys.stderr )
+                print( "is duplicity installed?", file=sys.stderr )
+                sys.exit( 2 )
 	print( "" )
 	sys.stdout.flush()
 
