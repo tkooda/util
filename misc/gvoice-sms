@@ -4,7 +4,7 @@
 
 import os
 import sys
-from googlevoice import Voice
+from googlevoice import Voice # pip install pygooglevoice
 
 
 if len( sys.argv ) < 3:
