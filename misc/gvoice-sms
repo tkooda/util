@@ -1,0 +1,20 @@
+#!/usr/bin/python
+
+## tkooda : 2016-01-12 : command to send SMS via google voice from the CLI
+
+import os
+import sys
+from googlevoice import Voice
+
+
+if len( sys.argv ) < 3:
+   print >>sys.stderr, "usage: %s <number> <message..>" % os.path.basename( sys.argv[ 0 ] )
+   sys.exit( 1 )
+
+voice = Voice()
+
+voice.login() # ~/.gvoice ini config file
+
+voice.send_sms( sys.argv[ 1 ],
+				" ".join( sys.argv[ 2: ] ) )
+
