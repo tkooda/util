@@ -1,0 +1,31 @@
+#!/bin/bash
+
+## tkooda : 2013-08-15 : create a new dated file and open it for editing, using args for filename description
+
+## usage:  tem-dated call with mike
+
+
+desc=""
+for a in $*; do 
+  if [ -n "${desc}" ]; then
+    desc="${desc}_${a// /_}"
+  else
+    desc="${a// /_}"
+  fi
+done
+
+f="`date -I`.${desc}.txt"
+## tkooda : 2013-09-24 : don't make new file, so it's easier to open the old file
+#while [ -f "${f}" ]; do
+#  f="`date +%Y-%m-%d_%H%M%S`.${desc}.txt"
+#  sleep 0.1
+#done
+#
+#echo "creating: ${f}"
+
+if [ ! -f "${f}" ]; then
+  echo "## tkooda : `date -I` : ${*}" >> "${f}"
+  echo >> "${f}"
+fi
+
+exec emacs -nw +4 "${f}"

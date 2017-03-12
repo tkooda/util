@@ -1,0 +1,75 @@
+#!/usr/bin/python
+
+## tkooda : 2008-03-20 : mkpasses : make "good" passes for users
+
+## tkooda : 2012-08-10 : XXX UPDATE for FuseMail AND Rackspace requirements
+
+
+## NOTES:
+##  - use easy-to-pronounce/understand words
+##  - use numbers that don't look like any letters
+##  - don't resuse words until nessicary
+##  - if `mkpasses 0`, then print a password for every line read from stdin
+
+
+import os
+import sys
+import random
+
+words = [ "Alpha", "Boston", "Bravo", "Chicago", "Delta", "Denver", "Echo", "Foxtrot", "Golf", "India", "Kilo", "Lima", "Ocean", "Oscar", "Sierra", "Sugar", "Tango", "Uniform", "Union", "Zulu",  "Apple", "Orange", "Banana", "Joker", "Onion", "Oxygen", "Silicon", "Copper", "Sulfur", "Sodium", "Silver", "Lemon", "Blue", "Green", "Purple", "Indigo", "Violet", "Zebra" ] # valid words
+nums = [ "2", "3", "4", "6", "7", "8", "9" ] # valid numbers (not 0,1,5)
+## tkooda : 2012-08-15 : fusemail doesn't consider these as "special" characters:  & ? ^ %
+#punct = [ "!", "@", "#", "$", "%", "^", "*", "-", "+", "?", "=" ]
+punct = [ "!", "@", "#", "$", "*", "-", "+", "=" ]
+
+
+def bail( str, err = 1 ):
+	sys.stderr.write( str )
+	sys.exit( err )
+
+
+def usage():
+	bail( "usage: %s [number of passes]\n" % sys.argv[ 0 ] )
+
+
+## check for a leading sequence of 3 numbers or more..
+def has_sequence( arr ):
+	if ( int(arr[0]) == int(arr[1])-1 == int(arr[2])-2 ) \
+		    or ( int(arr[1]) == int(arr[2])-1 == int(arr[3])-2 ) \
+		    or ( int(arr[0]) == int(arr[1])+1 == int(arr[2])+2 ) \
+		    or ( int(arr[1]) == int(arr[2])+1 == int(arr[3])+2 ):
+		return True
+	return False
+
+
+## randomize words order ..
+random.shuffle( words )
+
+## randomize punctuation order ..
+random.shuffle( punct )
+
+
+## check argv ..
+if len( sys.argv ) > 2:
+	usage()
+
+if len( sys.argv ) == 2:
+	try:
+		num = int( sys.argv[ 1 ] )
+	except:
+		usage()
+	for i in range( 0, num ):
+		random.shuffle( nums )
+		while has_sequence( nums ):
+			random.shuffle( nums )
+		print words[ i % len( words ) ] + random.choice( punct ) + "".join( nums[:4] )
+else:
+	seperator = os.getenv( "SEPERATOR" )
+	if not seperator:
+		seperator = " / "
+	i = 0
+	for line in sys.stdin:
+		random.shuffle( nums )
+		print "%s%s%s" % ( line.rstrip(), seperator,
+				   words[ i % len( words ) ] + random.choice( punct ) + "".join( nums[:4] ) )
+		i += 1

@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+## tkooda : 2008-04-15 : convert lines with "tai64nlocal" timestamps to "tai64n"
+
+import sys
+import re
+import time
+
+pattern = re.compile( "^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{9}) " )
+
+for line in sys.stdin:
+	m = pattern.match( line )
+	if not m:
+		print line ,
+		continue
+	if len( m.groups() ) != 7:
+		print line ,
+		continue
+	t = ( int( m.group( 1 ) ),
+		  int( m.group( 2 ) ),
+		  int( m.group( 3 ) ),
+		  int( m.group( 4 ) ),
+		  int( m.group( 5 ) ),
+		  int( m.group( 6 ) ),
+		  0, 0, -1 )
+	s = int( time.mktime( t ) ) + 10 # TAI = UTC+10@epoch
+	print "@40000000%08x%08x %s" % ( s, int( m.group( 7 ) ), line[30:] ) ,
+
