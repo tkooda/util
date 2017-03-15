@@ -1,0 +1,256 @@
+#!/usr/bin/python
+
+## tkooda : 2010-10-08 : external auth script for ejabberd to auth against pop3
+
+## CONFIG WITH:   {extauth_program, "/path/to/ejabberd-pop3auth"}.
+
+
+#domain_suffix="@exemple.net" #JID= user+domain_suffix
+
+AUTH_CACHE = "/etc/ejabberd/auth-cache"
+AUTH_CACHE_SECONDS = 259200 # how long to cache valid passwords before re-checking server, don't update local cache any faster than this.  (password changes on server could be delayed by up to this amount, too)
+
+INFO_LEVEL  = 5 # 0-3 (0==none)
+DEBUG_LEVEL = 4 # 0-5 (0==none)
+
+
+import os
+import sys
+import time
+import struct
+import poplib
+import logging
+from socket import error, timeout
+import re
+
+
+sys.stderr = open('/var/log/ejabberd/extauth-err_log', 'a') ## tkooda : 2011-03-02 : unused now that tracebacks go to log??
+
+logging.basicConfig( level=logging.DEBUG,
+		     format='%%(asctime)s %d %%(levelname)s %%(message)s' % os.getpid(),
+		     filename='/var/log/ejabberd/extauth_log',
+		     filemode='a' )
+
+
+class EjabberdInputError( Exception ):
+	def __init__( self, value ):
+		self.value = value
+	def __str__( self ):
+		return repr( self.value )
+
+
+def do_error( level, string ):
+	logging.error( "[%d] %s" % ( level, string ) )
+
+
+def do_info( level, string ):
+	if level <= INFO_LEVEL:
+		logging.info( "[%d] %s" % ( level, string ) )
+
+
+def do_debug( level, string ):
+	if level <= DEBUG_LEVEL:
+		logging.debug( "[%d] %s" % ( level, string ) )
+
+
+## tkooda : 2011-03-02 : unused
+#def touch( fpath, times = None ):
+#	fhandle = file( fpath, 'a' )
+#	try:
+#		os.utime( fpath, times )
+#	finally:
+#		fhandle.close()
+
+
+def update_cache( username, domain, password ):
+	do_debug( 1, "update_cache(): '%s' '%s' '%s'" % ( username, domain, password ) )
+	try:
+		dest_dir = os.path.join( AUTH_CACHE, domain )
+		if not os.path.isdir( dest_dir ):
+			do_debug( 4, "update_cache(): makedirs: '%s'" % dest_dir )
+			os.makedirs( dest_dir, 0700 )
+		dest_file = os.path.join( dest_dir, username )
+		if os.path.isfile( dest_file ):
+			if os.path.getmtime( dest_file ) > time.time() - AUTH_CACHE_SECONDS: # prevent caching passwords "too fast" ??
+				do_debug( 2, "update_cache(): cache timeout miss: '%s'" % dest_file )
+				return
+			os.remove( dest_file ) # remove old file
+		elif os.path.islink( dest_file ):
+			os.remove( dest_file ) # protect against symlink
+		os.umask( 0177 )
+		fd = os.open( dest_file, os.O_CREAT | os.O_WRONLY )
+		os.write( fd, password + "\n" )
+		os.close( fd )
+		do_debug( 5, "update_cache(): saved: '%s'" % dest_file )
+	except:
+		import traceback
+		do_error( 0, "update_cache(): exception:" + "\\n".join( traceback.format_exc().split() ) )
+		pass
+
+
+def check_cache( username, domain, password, ignore_age=False ):
+	do_debug( 1, "check_cache(): '%s' '%s' '%s'" % ( username, domain, password ) )
+	try:
+		dest_file = os.path.join( AUTH_CACHE, domain, username )
+		if not os.path.isfile( dest_file ):
+			do_debug( 4, "check_cache(): non-existant cache file: '%s'" % dest_file )
+			return False
+		if not ignore_age:
+			if os.path.getmtime( dest_file ) < time.time() - AUTH_CACHE_SECONDS:
+				do_debug( 4, "check_cache(): ignoring expired cache file: '%s'" % dest_file )
+				return False
+		fd = os.open( dest_file, os.O_RDONLY )
+		data = os.read( fd, 128 ).strip()
+		os.close( fd )
+		if data == password:
+			do_info( 3, "check_cache(): cached password match: '%s'" % dest_file )
+			return True
+		else:
+			do_info( 3, "check_cache(): cached password non-match: '%s'" % dest_file )
+			return False
+	except:
+		import traceback
+		do_error( 0, "check_cache(): exception:" + "\\n".join( traceback.format_exc().split() ) )
+		pass
+	return False
+
+
+def auth_pop3( username, domain, password ):
+	try:
+		if check_cache( username, domain, password ):
+			return True
+		
+		if username == "tkooda" and domain == "amconmedia.com" and password == "byte4921": # hardcoded admin, my email address is a forward instead of an actual mailbox
+			update_cache( username, domain, password )
+			return True
+		
+		m = poplib.POP3( "pop." + domain, timeout=10 ) # timeout is per-command
+		m.user( "%s@%s" % ( username, domain ) )
+		m.pass_( password )
+		if m.stat():
+			m.quit()
+			do_info( 2, "auth_pop3(): successful pop3 login: '%s' '%s' '%s'" % ( username, domain, password ) )
+			update_cache( username, domain, password )
+			return True
+
+	except poplib.error_proto:
+		do_info( 3, "auth_pop3(): incorrect pop3 login: '%s' '%s' '%s'" % ( username, domain, password ) )
+		## NOTE: it might be nice to remove any cached password if it matches this now-known incorrect pop3 password.
+		return False
+	except IndexError:
+		do_info( 3, "auth_pop3(): invalid username: '%s'" % username )
+		return False # invalid username
+	except error:
+		do_error( 1, "auth_pop3(): connection error, checking cache: '%s'" % domain )
+		if check_cache( username, domain, password, ignore_age=True ):
+			return True
+		return False # connection failed
+	except timeout:
+		do_error( 1, "auth_pop3(): connection timeout, checking cache: '%s'" % domain )
+		if check_cache( username, domain, password, ignore_age=True ):
+			return True
+		return False # connection failed
+	except:
+		import traceback
+		do_error( 1, "auth_pop3(): exception:" + "\\n".join( traceback.format_exc().split() ) )
+		return False
+	
+	return False
+
+
+def ejabberd_in():
+	do_debug( 5, "ejabberd_in(): waiting to read 2 bytes from ejabberd.." )
+	try:
+		input_length = sys.stdin.read(2)
+	except IOError:
+		do_error( 0, "ejabberd_in(): ioerror" )
+	if len( input_length ) is not 2:
+		do_error( 0, "ejabberd_in(): ejabberd sent us wrong things" )
+		raise EjabberdInputError( 'ejabberd_in(): wrong input from ejabberd' )
+	
+	(size,) = struct.unpack( '>h', input_length )
+	do_debug( 5, 'ejabberd_in(): size of data: %i' % size )
+	income=sys.stdin.read( size ).split( ':' )
+	do_debug( 5, "ejabberd_in(): incoming data: %s" % income )
+	return income
+
+
+def ejabberd_out( bool ):
+	do_debug( 5, "ejabberd_out(): ejabberd gets: %s" % bool )
+	token = genanswer( bool )
+	do_debug( 5, "ejabberd_out(): sent bytes: %#x %#x %#x %#x" % ( ord( token[0] ),
+									 ord( token[1] ),
+									 ord( token[2] ),
+									 ord( token[3] ) ) )
+	sys.stdout.write( token )
+	sys.stdout.flush()
+
+
+def genanswer( bool ):
+	answer = 0
+	if bool:
+		answer = 1
+	token = struct.pack( '>hh', 2, answer )
+	return token
+
+
+def isuser( in_user, in_host ):
+	dest_file = os.path.join( AUTH_CACHE, in_host, in_user )
+	if os.path.isfile( dest_file ):
+		do_debug( 2, "isuser(): found matching cached user file: '%s'" % dest_file )
+		return True
+	else:
+		do_debug( 2, "isuser(): missing matching cached user file: '%s'" % dest_file )
+	return False
+
+
+def auth( in_user, in_host, password ):
+	do_debug( 2, "auth(): verifying: '%s' '%s' '%s'" % ( in_user, in_host, password ) )
+	
+	if not re.match( "^[a-z0-9\.\-]+$", in_user, re.I ):
+		do_info( 2, "auth(): ignoring invalid username: %s @ %s : %s " % ( in_user, in_host, password ) )
+	
+	if not re.match( "^[a-z0-9\.\-]+$", in_host, re.I ):
+		do_info( 2, "auth(): ignoring invalid hostname: %s @ %s : %s " % ( in_user, in_host, password ) )
+	
+	if auth_pop3( in_user, in_host, password ):
+		do_info( 2, "auth(): correct password for user: %s @ %s : %s " % ( in_user, in_host, password ) )
+		return True
+	do_info( 2, "auth(): invalid password for user: %s @ %s : %s " % ( in_user, in_host, password ) )
+	return False
+
+
+def result( op, in_user, in_domain, in_pass, bool ):
+	if bool:
+		do_info( 1, "result(): %s successful for '%s', '%s', '%s'" % ( op, in_user, in_domain, in_pass ) )
+	else:
+		do_info( 1, "result(): %s failed for '%s', '%s', '%s'" % ( op, in_user, in_domain, in_pass ) )
+
+
+while True:
+	do_debug( 5, "starting.." )
+	try:
+		ejab_request = ejabberd_in()
+	except EjabberdInputError, inst:
+		do_error( 0, "Exception occured: %s" % inst )
+		break
+	do_debug( 5, 'operation: %s' % ( ejab_request[0] ) )
+	op_result = False
+	if ejab_request[0] == "auth":
+		op_result = auth( ejab_request[1], ejab_request[2], ejab_request[3] )
+		ejabberd_out( op_result )
+		result( ejab_request[0], ejab_request[1], ejab_request[2],
+			ejab_request[3], op_result )
+	elif ejab_request[0] == "isuser":
+		op_result = isuser( ejab_request[1], ejab_request[2] )
+		ejabberd_out( op_result )
+		result( ejab_request[0], ejab_request[1], ejab_request[2],
+			"", op_result )
+	elif ejab_request[0] == "setpass":
+		op_result=False
+		ejabberd_out( op_result )
+		result( ejab_request[0], ejab_request[1], ejab_request[2],
+			ejab_request[3], op_result )
+
+do_info( 1, "exiting." )
+
