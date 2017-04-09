@@ -1,0 +1,35 @@
+#!/usr/bin/python
+
+## 2017-04-09 : tkooda : only execute sub-command if enough time has elapsed since the last execution
+
+
+from __future__ import print_function
+import os
+import sys
+import fcntl
+import time
+
+
+SECONDS_PER_UNIT = { "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800 }
+
+
+if len( sys.argv ) < 4:
+	print( "usage: %s <N{s|m|h|d|w}> <lockfile> <command..>" % os.path.basename( sys.argv[ 0 ] ), file=sys.stderr )
+	sys.exit( 1 )
+
+delay = sys.argv[ 1 ]
+lockfile = sys.argv[ 2 ]
+cmd = sys.argv[ 3: ]
+
+
+if os.path.isfile( lockfile ):
+	if os.path.getmtime( lockfile ) > time.time() - int(delay[:-1]) * SECONDS_PER_UNIT[delay[-1]]:
+		sys.exit( 1 )
+
+try:
+	with open( lockfile, "w" ) as f:
+		fcntl.flock( f, fcntl.LOCK_EX | fcntl.LOCK_NB )
+		os.execvp( cmd[ 0 ], cmd )
+except IOError:
+	sys.exit( 1 )
+
