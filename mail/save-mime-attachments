@@ -1,0 +1,65 @@
+#!/usr/bin/python
+
+## 2017-04-10 : tkooda : parse MIME multiplart attachments from stdin and save to files with extensions
+
+## example ~/.muttrc config:
+##   macro attach a <pipe-message>' /var/www/vhosts/example.com/attachments https://example.com/attachments'<enter>
+
+
+from __future__ import print_function
+import os
+import sys
+from email import message_from_string
+from quopri import decodestring
+from mimetypes import guess_extension, guess_all_extensions
+from datetime import datetime
+
+TRANSLATE = { ".ksh": ".txt" } # https://bugs.python.org/issue1043134
+
+if len( sys.argv ) != 2 and len( sys.argv ) != 3:
+	print( "usage: %s <base_dir> [base_url]" % os.path.basename( sys.argv[0] ) ) # will create "$base_dir/%Y-%m-%d_%H%M%S_%f/attachment_1.txt", etc
+	sys.exit( 1 )
+
+
+data = sys.stdin.read()
+header = 'Content-type: multipart/alternative; boundary="%s"\n\n' % data.split( "\n" )[0][ 2: ] # seed message_from_string()
+msg = message_from_string( header + data )
+
+base_dir = datetime.now().strftime( "%Y-%m-%d_%H%M%S_%f" )
+path_dir = os.path.join( sys.argv[1], base_dir )
+if len( sys.argv ) == 3:
+	base_url = os.path.join( sys.argv[2], base_dir )
+else:
+	base_url = None
+
+saved_any = False
+for i, part in enumerate( msg.walk(), 0 ):
+	if part.is_multipart():
+		continue
+	
+	base_file = "".join([ c for c in part.get_filename( "attachment_%d" % i ) if c.isalpha() or c.isdigit() or c in [' ','-','_'] ]).rstrip()
+	ext_guess = guess_extension( part.get_content_type() ) or "__unknown_type.txt"
+	ext = TRANSLATE.get( ext_guess, ext_guess )
+	filename = base_file + ext
+	
+#	print( "EXT_GUESS_ALL:", guess_all_extensions( part.get_content_type() ) )
+	if not os.path.isdir( path_dir ):
+		os.makedirs( path_dir )
+	
+	path_file = os.path.join( path_dir, filename )
+	with open( path_file, "w+" ) as f:
+		f.write( decodestring( part.get_payload() ) )
+		saved_any = True
+	
+	print( "file:", path_file )
+	if base_url:
+		print( "url:", os.path.join( base_url, filename ) )
+	print()
+
+
+if saved_any:
+	print( "base_dir:", path_dir )
+	if base_url:
+		print( "base_url:", base_url )
+	print()
+
