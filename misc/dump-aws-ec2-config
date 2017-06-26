@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+
+## 2017-06-26 : tkooda : dump aws ec2 config (with correct config-tree-depth) in sortable format, for detecting changes with `diff`
+
+import boto3
+
+
+def walk_config( obj, place = [] ):
+	if type( obj ) is dict:
+		for k,v in obj.items():
+			walk_config( v, place + [ k ] )
+	
+	elif type( obj ) is list:
+		for k in obj:
+			walk_config( k, place )
+	
+	else:
+		print( " > ".join( place + [ str( obj ) ] ) )
+
+
+ec2 = boto3.client('ec2')
+for response in [ ec2.describe_instances(),
+				  ec2.describe_network_acls(),
+				  ec2.describe_security_groups() ]:
+	walk_config( response )
