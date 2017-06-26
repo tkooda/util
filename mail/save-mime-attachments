@@ -32,6 +32,8 @@ if len( sys.argv ) == 3:
 else:
 	base_url = None
 
+os.umask( 022 )
+
 saved_any = False
 for i, part in enumerate( msg.walk(), 0 ):
 	if part.is_multipart():
