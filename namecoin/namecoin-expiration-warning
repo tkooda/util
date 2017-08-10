@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+## 2017-08-10 : tkooda : check 3rd party API, print warning for any domains about to expire
+
+import sys
+import requests
+from argparse import ArgumentParser
+
+parser = ArgumentParser( description = "Print warnings if any Namecoin addresses expiration below threshold" )
+group = parser.add_mutually_exclusive_group()
+group.add_argument( "--min-blocks", action="store", type=int, help="Warn for any names that expire in less than this number of blocks" )
+group.add_argument( "--min-days", action="store", type=int, help="Warn for any names that expire in less than this number of days" )
+parser.add_argument( "names", action="append", type=str, nargs="+", default=[], help="Namecoin addresses  (e.g. d/foo d/bar)" )
+parser.add_argument( "--debug", action="store_true", help="Print debugging info" )
+args = vars( parser.parse_args() )
+
+
+for name in args.get( "names" )[0]:
+	r = requests.get( "https://namecoin.webbtc.com/name/%s.json" % name )
+	d = r.json()
+	
+	expires_blocks = d.get( "expires_in" )
+	expires_days = expires_blocks / 6 / 24
+	
+	if args.get( "min_blocks" ):
+		min_blocks = args.get( "min_blocks" )
+		min_days = min_blocks / 6 / 24
+	elif args.get( "min_days" ):
+		min_days = args.get( "min_days" )
+		min_blocks = min_days * 24 * 6
+	else:
+		min_blocks = 36000 / 2
+		min_days = min_blocks / 6 / 24
+	
+	if args.get( "debug" ):
+		print "DEBUG: %s expires_blocks:%d expires_days:%d min_blocks:%d min_days:%d" \
+		  % ( d.get( "name" ), expires_blocks, expires_days, min_blocks, min_days )
+	
+	if expires_blocks < min_blocks:
+		print "WARNING: namecoin name '%s' expires in %s blocks (~%d days)" \
+		  % ( d.get( "name" ), expires_blocks, expires_days )
+		print d
+		print
