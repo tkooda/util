@@ -1,0 +1,81 @@
+#!/usr/bin/python
+
+## 2017-08-10 : tkooda : fetch new usenet articles from alt.anonymous.messages via NNTP and store successfully decrypted ones in a local Maildir
+
+# e.g. for the use with a ZAX type Nymserver (e.g. http://mixnym.net/).
+
+# algorithm: register anonymous pseudonym address + symmetric cipher key, send to nym via SMTP, collect articles off nntp:alt.anonymous.messages, decrypt and store in local Maildir.
+
+
+import os
+import sys
+from configparser import ConfigParser
+from argparse import ArgumentParser
+from nntplib import NNTP
+import hashlib
+import gnupg
+from mailbox import Maildir
+
+## parse config..
+config = ConfigParser()
+config.read( os.path.expanduser( os.getenv( "NYM_TO_MAILDIR_CONFIG", "~/.config/nym-to-maildir.ini" ) ) )
+
+## parse args..
+parser = ArgumentParser( description = "fetch new articles from alt.anonymous.messages via NNTP and store successfully decrypted articles in a local Maildir" )
+parser.add_argument( "--server", action="store", default="news.aioe.org", help="NNTP server" ) # http://freenews.maxbaud.net/scorecard.html
+parser.add_argument( "--last", action="store", type=int, default=10, help="Only fetch up to this many most recent unseen articles" )
+#parser.add_argument( "--since", action="store", type=valid_date, help="Only fetch articles since this date" )
+parser.add_argument( "--key", action="store", help="Symmetric cipher key to use to decrypt articles" )
+parser.add_argument( "--maildir", action="store", default="~/.Maildir/nym-to-maildir", help="Path to local Maildir" )
+parser.add_argument( "--debug", action="store_true", help="Print debugging info" )
+args = vars( parser.parse_args() )
+
+
+## connect to NNTP server..
+s = NNTP( args.get( "server" ) )
+response, count, start_id, end_id, name = s.group( "alt.anonymous.messages" )
+start_id = int( start_id )
+end_id = int( end_id )
+print "Group %s has %s articles (%d - %d)" % ( name, count, start_id, end_id )
+
+
+## pick oldest article id to resume from (per server)..
+path_last_id = os.path.expanduser( "~/.cache/nym-to-maildir.last_id.%s" % hashlib.sha1( args.get( "server" ) ).hexdigest() )
+try:
+	with open( path_last_id, "r" ) as f:
+		from_id = int( f.read() )
+except:
+	from_id = end_id - args.get( "last" )
+
+if from_id == end_id:
+	print "No unseen articles."
+	sys.exit()
+
+if from_id < start_id:
+	print "Skipping %d articles (%d -> %d)" % ( start_id - from_id, from_id, start_id )
+	from_id = start_id
+
+
+## fetch unseen articles..
+print "Fetching %d new articles (%d - %d).." % ( end_id - from_id, from_id, end_id )
+response, articles = s.xhdr( "date", "%d-%d" % ( from_id, end_id ) )
+
+
+## save any articles we were able to decrypt into a local Maildir..
+gpg = gnupg.GPG()
+key = args.get( "key" )
+if not key: # required per vars()
+	key = config[ "default" ][ "key" ]
+md = Maildir( os.path.expanduser( args.get( "maildir" ) ) )
+for id, date in articles[ - ( end_id - from_id ) : ]:
+	print "article:", id, date
+	response, number, message_id, lines = s.article( id )
+	cleartext = gpg.decrypt( "\n".join( lines ), passphrase = key )
+	if cleartext:
+		fn = md.add( cleartext )
+		print "saved:", id, "as", fn
+
+
+## record last article id..
+with open( path_last_id, "w+" ) as f:
+	f.write( id )
