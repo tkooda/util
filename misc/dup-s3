@@ -2,6 +2,10 @@
 
 ## tkooda : 2015-02-20 : simple duplicity backup script, specify S3 bucket, and list of dirs to backup
 ## tkooda : 2015-03-06 : rewrote in python because escaping optional duplicity args in bash was a mess
+## 2017-09-27 : kmogged : Added support to pass through --verbosity and --no-print-statistics arguments to duplicity.
+##                        Attempted to support all styles of duplicity's --verbosity values.
+##                        This allows dup-s3 to be ran completely silent unless there is an error.
+##                        Also added a convenient --silent argument to set duplicity to a silent error only function.
 
 ## from:  https://github.com/tkooda/util/blob/master/misc/dup-s3
 
@@ -23,6 +27,8 @@ import subprocess
 import socket # for gethostname()
 import envdir # pip install envdir
 
+## 2017-09-27 : kmogged : Print standard output for this range of verbosity values
+VERBOSITY_OUTPUT = ['3', '4', 'notice', 'n', '5', '6', '7', '8', 'info', 'i', '9', 'debug', 'd']
 
 def debug( level, *objs ):
 	try:
@@ -34,7 +40,9 @@ def debug( level, *objs ):
 
 
 def do_backup( args, path_dir ):
-	print( "[ backing up '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
+	## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more
+	if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+		print( "[ backing up '%s' to '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
 	debug( 9, "do_backup(): args:", args )
 	
 	cmd = [ "duplicity",
@@ -42,6 +50,12 @@ def do_backup( args, path_dir ):
 		"--full-if-older-than", args[ "full_if_older_than" ],
 		"--volsize", args[ "volsize" ],
 		]
+
+
+	if args.get( "verbosity" ): ## 2017-09-26 : kmogged : support and pass-through duplicity's verbosity argument
+		cmd += [ '--verbosity', args['verbosity'] ]
+	if args.get( "no_print_statistics" ): ## 2017-09-26 : kmogged : support and pass-through duplicity's no-print-statistics argument
+		cmd += [ "--no-print-statistics" ]
 	if args.get( "dry_run" ):
 		cmd += [ "--dry-run" ]
 	for a in args[ "exclude" ] or []:
@@ -62,14 +76,22 @@ def do_backup( args, path_dir ):
                 else:
                         raise
 #                sys.exit( 2 )
-	print( "" )
+	## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more.  If I don't do this it emails a blank email
+	if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+		print( "" )
 	sys.stdout.flush()
 
 
 def do_clean( args, path_dir ):
-	print( "[ cleaning '%s' on '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
+	## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more
+	if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+		print( "[ cleaning '%s' on '%s' .. ]" % ( path_dir, args[ "s3_bucket_path" ] ) )
 	
 	cmd = [ "duplicity" ]
+	if args.get( "verbosity" ): ## 2017-09-26 : kmogged : support and pass-through duplicity's verbosity argument
+		cmd += [ '--verbosity', args['verbosity'] ]
+	if args.get( "no_print_statistics" ): ## 2017-09-26 : kmogged : support and pass-through duplicity's no-print-statistics argument
+		cmd += [ "--no-print-statistics" ]
 	if args.get( "dry_run" ):
 		cmd += [ "--dry-run" ]
 	cmd += [ "remove-all-but-n-full", args[ "remove_all_but_n_full" ], "--force",
@@ -79,13 +101,19 @@ def do_clean( args, path_dir ):
 	
 	sys.stdout.flush()
 	subprocess.call( cmd, stderr=subprocess.STDOUT )
-	print( "" )
+	## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more.  If I don't do this it emails a blank email
+	if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+		print( "" )
 	sys.stdout.flush()
 
-
+## 2017-09-27 : kmogged : This function makes it easier to support duplicity's mixed case arguments 
+def lowercase_arg ( value ):
+	return value.lower()
 
 ## get config from envdir..
 path_envdir = os.getenv( "DUPLICITY_ENVDIR", "~/.config/envdir/duplicity/" )
+## 2017-09-27 : kmogged : A lot of different verbosity values to support duplicity.
+VERBOSITY_VALUES = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9','error','warning','notice','info','debug','e','w','n','i','d']
 try:
 	envdir.open( path_envdir )
 except:
@@ -102,17 +130,29 @@ parser.add_argument( '--exclude', action='append', help='BACKUP: excludes (befor
 parser.add_argument( '--include', action='append', help='BACKUP: includes (after excludes; imples --exclude "**" )')
 parser.add_argument( '--clean', default=False, action='store_true', help='CLEAN: Clean old full backups off S3')
 parser.add_argument( '--remove-all-but-n-full', default='2', action='store', help='CLEAN: Remove all but N full')
+## 2017-09-26 : kmogged : Support duplicity's --verbosity argument
+parser.add_argument( '-v', '--verbosity', metavar='[0-9]', type=lowercase_arg, help='Adjust output verbosity for duplicity', default='4', action='store', choices=VERBOSITY_VALUES )
+## 2017-09-26 : kmogged : Support duplicity's --no-print-statistics argument
+parser.add_argument( '--no-print-statistics', default=False, action='store_true', help='By default duplicity will print statistics.  This switch disables that behavior')
+## 2017-09-26 : kmogged : Add a convience argument to create completely silent output unless there is an error
+parser.add_argument( '-s', '--silent', default=False, action='store_true', help='Convenience switch, which is the same as using arguments -v 0 --no-print-statistics')
 parser.add_argument( 's3_bucket_path', action='store', help='e.g.: s3+http://my-bucket-name/my-device-dir')
 parser.add_argument( 'dir_to_backup', action='store', nargs='+' )
 args = vars( parser.parse_args() )
 args[ "hostname" ] = socket.gethostname()
+## 2017-09-27 : kmogged : If --silent argument is used set the arguments verbosity to 0 and --no-print-statistics to true
+if ( args [ 'silent' ] ):
+	args[ 'verbosity' ] = '0'
+	args[ 'no_print_statistics' ] = True
+
 debug( 0, "ARGS:", args )
 
 
 for path_dir in args[ "dir_to_backup" ]:
 	path_dir = os.path.normpath( path_dir ) # remove any extra slashes
-	try:
-		print( "#################################################" )
+	try: ## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more
+		if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+			print( "#################################################" )
 		
 		os.chdir( path_dir )
 		
@@ -140,5 +180,7 @@ for path_dir in args[ "dir_to_backup" ]:
         
 	except IOError:
 		print( "ERROR: existing process already has lock on file:", path_lock )
-	print( "" )
+	## 2017-09-26 : kmogged : Only output with a verbosity of 3 or more.  If I don't do this it emails a blank email
+	if ( args['verbosity'] in VERBOSITY_OUTPUT ):
+		print( "" )
 
