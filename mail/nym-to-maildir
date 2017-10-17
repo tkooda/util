@@ -65,7 +65,7 @@ response, articles = s.xhdr( "date", "%d-%d" % ( from_id, end_id ) )
 gpg = gnupg.GPG()
 key = args.get( "key" )
 if not key: # required per vars()
-	key = config[ "default" ][ "key" ]
+	key = config[ "keys" ][ "symmetric" ]
 md = Maildir( os.path.expanduser( args.get( "maildir" ) ) )
 for id, date in articles[ - ( end_id - from_id ) : ]:
 	print "article:", id, date

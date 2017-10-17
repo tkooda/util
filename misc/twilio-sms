@@ -1,11 +1,12 @@
 #!/usr/bin/python
 
 ## tkooda : 2016-01-12 : command to send SMS via google voice from the CLI
+## tkooda : 2017-10-17 : read message from stdin if not provided as 2nd arg
 
 import os
 import sys
 import envdir # pip install envdir
-from twilio.rest import TwilioRestClient # pip install twilio
+from twilio.rest import Client # pip install twilio
 
 path_envdir = os.getenv( "TWILIO_ENVDIR", "~/.config/envdir/twilio/" )
 try:
@@ -15,14 +16,19 @@ except:
     sys.exit( 2 )
 
 
-if len( sys.argv ) < 3:
-    print >>sys.stderr, "usage: %s <number> <message..>" % os.path.basename( sys.argv[ 0 ] )
+if len( sys.argv ) < 2:
+    print >>sys.stderr, "usage: %s <number> [message..]" % os.path.basename( sys.argv[ 0 ] )
     sys.exit( 1 )
 
-client = TwilioRestClient( os.getenv( "TWILIO_ACCOUNT" ),
+client = Client( os.getenv( "TWILIO_ACCOUNT" ),
                            os.getenv( "TWILIO_TOKEN" ) )
+
+if len( sys.argv ) == 2:
+	body = sys.stdin.read()
+else:
+	body = " ".join( sys.argv[ 2: ] )
 
 message = client.messages.create( to = sys.argv[ 1 ],
                                   from_ = os.getenv( "TWILIO_NUMBER" ),
-                                  body = " ".join( sys.argv[ 2: ] ) )
+                                  body = body )
 print message.status
