@@ -1,0 +1,50 @@
+#!/usr/bin/python
+
+## tkooda : 2016-01-12 : command to send SMS via google voice from the CLI
+## tkooda : 2017-10-17 : read message from stdin if not provided as 2nd arg
+## tkooda : 2017-11-13 : switch to ConfigParser, ArgumentParser, and add support for MMS
+
+from __future__ import print_function
+
+import os
+import sys
+from configparser import ConfigParser
+from argparse import ArgumentParser
+try:
+	from twilio.rest import Client as trc # pip install twilio (v6.6.3)
+except:
+	from twilio.rest import TwilioRestClient as trc # pip install twilio   (v5.2.0)
+	pass
+
+
+## parse config..
+config = ConfigParser()
+config.read( os.path.expanduser( os.getenv( "TWILIO_CONFIG", "~/.config/twilio.ini" ) ) )
+
+## parse args..
+parser = ArgumentParser( description = "send MMS using twilio" )
+parser.add_argument( "--url", "-u", help="URL to media file attachment" )
+parser.add_argument( "--stdin", "-s", action="store_true", help="Read message from stdin" )
+parser.add_argument( "--to", "-t", required=True, help="Phone number to send to (e.g. +12345678901)" )
+parser.add_argument( "message", nargs="*", help="Optional message passed as args" )
+args = vars( parser.parse_args() )
+
+if not args.get( "stdin" ) and not args.get( "message" ) and not args.get( "url" ):
+	sys.stderr.write( "ERROR: must provide message as args or on stdin or URL\n" )
+	parser.print_help()
+	sys.exit( 2 )
+
+
+if args.get( "stdin" ):
+	body = sys.stdin.read() # support carriage returns on stdin
+else:
+	body = "\n".join( args.get( "message" ) )
+
+client = trc( config.get( "twilio", "username" ), config.get( "twilio", "password" ) )
+
+message = client.messages.create( to = args.get( "to" ),
+									from_ = os.getenv( "TWILIO_NUMBER", config.get( "twilio", "from" ) ),
+									body = body,
+									media_url = args.get( "url" ) )
+
+print( message.status )
