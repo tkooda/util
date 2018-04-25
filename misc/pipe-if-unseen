@@ -1,0 +1,34 @@
+#!/usr/bin/python -u
+
+# "-u" option for binary stdin
+
+## 2016-06-06 : tkooda : pass stdin through to stdout only if the exact same stdin hasn't been seen in past argv[1] seconds
+
+import os
+import sys
+from hashlib import sha1
+import time
+
+data = sys.stdin.read()
+## 2017-11-15 : tkooda : add support for optional 2nd arg to hash along with stdin (for avoiding colissions when wanting to send same input to multiple separate commands)
+##h = sha1( data ).hexdigest()
+s = sha1( data )
+if len( sys.argv ) == 3: # additional string to consider in hash, e.g. for sending SMS to multiple people
+    s.update( sys.argv[2] )
+h = s.hexdigest()
+
+path_cache_dir = os.path.join( os.path.expanduser( "~/.cache/pipe-if-unseen/" ), h[:2] )
+path_cache_file = os.path.join( path_cache_dir, h[2:] )
+
+if os.path.isfile( path_cache_file ) and os.path.getmtime( path_cache_file ) + int( sys.argv[1] ) > time.time():
+    sys.exit( 1 )
+
+if not os.path.isdir( path_cache_dir ):
+    os.makedirs( path_cache_dir, 0700 )
+
+with open( path_cache_file, 'a' ):
+    os.utime( path_cache_file, None ) # touch()
+
+sys.stdout.write( data ) # pipe
+
+sys.exit( 0 )
