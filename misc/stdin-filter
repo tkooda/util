@@ -1,0 +1,29 @@
+#!/bin/bash
+
+## 2017-10-09 : tkooda : pass stdin through if it does/doesn't match a regex
+
+function usage {
+  echo "usage: ${0##*/} [ir] [regex]"
+  echo " e.g.: ${0##*/} -i 'ignore stdin and do not pass it through if it matches this regex'"
+  echo " e.g.: ${0##*/} -r 'require this regex instdin in order to pass stdin through'"
+  exit 1
+}
+
+if [ $# != 2 ]; then
+  usage
+fi
+
+t=`mktemp /tmp/tmp.stdin-filter.XXXX`
+cat > "$t"
+if [ "$1" == "-i" ]; then # ignore stdin if regex found in it
+  egrep -q "$2" "$t" || cat "$t"
+  rm -f "$t"
+elif [ "$1" == "-r" ]; then # only pass stdin through if regex found in it
+  egrep -q "$2" "$t" && cat "$t"
+  rm -f "$t"
+else
+  rm -f "$t"
+  usage
+fi
+
+
