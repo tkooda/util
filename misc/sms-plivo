@@ -1,0 +1,28 @@
+#!/usr/bin/python3
+
+## 2018-05-29 : tkooda : send SMS using plivo.com
+
+import os
+import sys
+from configparser import ConfigParser
+import plivo
+
+if len( sys.argv ) < 2:
+	print( "usage: %s <destination_number> [sms_message|stdin]" % os.path.basename( sys.argv[ 0 ] ) )
+	sys.exit( 1 )
+
+config_plivo = ConfigParser()
+config_plivo.read( os.path.expanduser( os.getenv( "CONFIG_PLIVO",
+						  "~/.config/plivo.ini" ) ) )
+
+client = plivo.RestClient( auth_id = config_plivo[ "DEFAULT" ][ "auth_id" ],
+			   auth_token = config_plivo[ "DEFAULT" ][ "auth_token" ] )
+
+message_created = client.messages.create(
+	src = config_plivo[ "DEFAULT" ][ "number_src" ],
+	dst = sys.argv[ 1 ],
+	text = sys.stdin.read() if len( sys.argv ) <= 2 else " ".join( sys.argv[ 2: ] )
+)
+
+print( message_created[ "message" ] )
+
