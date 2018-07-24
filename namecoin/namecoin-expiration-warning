@@ -16,7 +16,9 @@ args = vars( parser.parse_args() )
 
 
 for name in args.get( "names" )[0]:
-	r = requests.get( "https://namecoin.webbtc.com/name/%s.json" % name )
+## 2018-07-24 : tkooda : webbtc.com no longer works
+##	r = requests.get( "https://namecoin.webbtc.com/name/%s.json" % name )
+	r = requests.get( "https://namecoin.cyphrs.com/api/name_show/%s" % name )
 	d = r.json()
 	
 	expires_blocks = d.get( "expires_in" )
