@@ -1,0 +1,35 @@
+#!/usr/bin/python -u
+
+# "-u" option for binary stdin
+
+## 2018-07-25 : tkooda : pass stdin through to stdout only if the regex is found in stdin
+
+from __future__ import print_function
+
+import os
+import sys
+from tempfile import mkstemp
+from re import search
+from mmap import mmap
+
+## write entire stdin to tmp file ..
+path_tmp_dir = os.path.expanduser( os.getenv( "TMPDIR_PIPE_IF_REGEX", "/tmp/" ) )
+fp, fn = mkstemp( suffix = ".tmp", prefix = "pipe-if-regex.", dir = path_tmp_dir )
+os.write( fp, sys.stdin.read() )
+os.close( fp )
+
+## search tmp file for patterns provided on argv ..
+with open( fn, 'r+' ) as f:
+	data = mmap( f.fileno(), 0 )
+	for pattern in sys.argv[ 1: ]:
+		match_object = search( pattern, data )
+		if match_object:
+			## upon first match: print all of stdin, delete tmp file, and exit.
+			sys.stdout.write( data.read( sys.maxsize ) )
+			f.close()
+			os.unlink( fn )
+			sys.exit( 0 )
+
+## no match ..
+os.unlink( fn )
+sys.exit( 1 )
