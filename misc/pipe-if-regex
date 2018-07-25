@@ -9,8 +9,8 @@ from __future__ import print_function
 import os
 import sys
 from tempfile import mkstemp
-from re import search
 from mmap import mmap
+import re
 
 ## write entire stdin to tmp file ..
 path_tmp_dir = os.path.expanduser( os.getenv( "TMPDIR_PIPE_IF_REGEX", "/tmp/" ) )
@@ -22,7 +22,7 @@ os.close( fp )
 with open( fn, 'r+' ) as f:
 	data = mmap( f.fileno(), 0 )
 	for pattern in sys.argv[ 1: ]:
-		match_object = search( pattern, data )
+		match_object = re.search( pattern, data, re.MULTILINE )
 		if match_object:
 			## upon first match: print all of stdin, delete tmp file, and exit.
 			sys.stdout.write( data.read( sys.maxsize ) )
