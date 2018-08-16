@@ -1,0 +1,6 @@
+#!/bin/bash
+## 2018-08-16 : tkooda : trivial wrapper around https://github.com/cathalgarvey/go-minilock (`go get -u github.com/cathalgarvey/go-minilock/minilock-cli`)
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <recipient_miniLock_id> <file>"; exit 2; }
+[ ! -e "${2}.minilock" ] || { echo "ERROR: '${2}.minilock' already exists, could not encrypt."; exit 3; }
+minilock-cli encrypt --dont-encrypt-to-self --passphrase=`openssl rand -hex 16` "$2" `openssl rand -hex 8`@`openssl rand -hex 8`.com "$1" \
+  |grep -v '^\(Encrypting to self:  false\|File encrypted using ID: \)'
