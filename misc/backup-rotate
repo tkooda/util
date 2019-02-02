@@ -1,0 +1,131 @@
+#!/usr/bin/python3
+
+## 2019-02-01 : tkooda : copy/rotate backup directories based on a schedule
+
+## USAGE:  fill the '--source' directory with data to be backed up, then run this script to delete old backups (based on period arguments) and save (e.g. hardlink) backup copies.
+
+## NOTES:
+##  - use '--hardlinks' to not waste redundant disk space, but be sure to delete files (e.g. `rsync` without '--inplace') in the '--source' directory instead of editing them.  ('--source' should be a COPY of your data, NOT the live data if you use '--hardlinks')
+##  - will gracefully automatically resume desired schedule even if it wasn't run frequently enough.
+##  - is safe to run as frequently as desired, it will only copy the minimum number of desired backups.  (e.g. can be run hourly, and will only backup once daily)
+##  - the backups will occur no more frequent than the desired (non-zero) day/week/month/year periods, but only as frequent as the script as run.  (e.g. can skip running it a few days and it'll gracefully resume where it left off for all periods when it's run again)
+
+
+import os
+import sys
+from argparse import ArgumentParser
+from glob import glob
+from datetime import datetime, timedelta
+from shutil import copytree, rmtree
+
+GLOB_DATE = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+PERIODS = { "day": 1, "week": 7, "month": 30, "year": 365 } # will slowly skew backup's day-of-month, but is acceptable
+
+
+def eprint( *args, **kwargs ):
+	exit = kwargs.pop( "exit", None )  # optional exit=N arg
+	sys.stdout.flush()
+	sys.stderr.flush()
+	print( *args, file=sys.stderr, **kwargs )
+	sys.stdout.flush()
+	sys.stderr.flush()
+	if exit:
+		sys.exit( exit )
+
+
+def debug( level, *args, **kwargs ):
+	try:
+		if int( os.getenv( "DEBUG" ) ) >= level:
+			eprint( "DEBUG(%d):" % level, *args, **kwargs )
+	except SystemExit as exit:  # support exit=N within try in in debug()
+		sys.exit( exit )
+	except:
+		pass
+
+
+## parse args..
+parser = ArgumentParser( description = "Rotate/delete directories based on a schedule." )
+
+parser.add_argument( "--source", type=str, required=True, help="Source directory to copy from." )
+parser.add_argument( "--destination", type=str, required=True, help="Destination directory to copy to." )
+parser.add_argument( "--hardlinks", action="store_true", help="Copy using hardlinks." )
+
+parser.add_argument( "--day", "-d", type=int, default=7, help="Number of 'day.YYYY-MM-DD' directories to keep." )
+parser.add_argument( "--week", "-w", type=int, default=4, help="Number of 'week.YYYY-MM-DD' directories to keep." )
+parser.add_argument( "--month", "-m", type=int, default=6, help="Number of 'month.YYYY-MM-DD' directories to keep." )
+parser.add_argument( "--year", "-y", type=int, default=2, help="Number of 'year.YYYY-MM-DD' directories to keep." )
+
+parser.add_argument( "--dry-run", "-n", action="store_true", help="Don't actually do anything." )
+
+#arg_group_verbosity = parser.add_mutually_exclusive_group()
+#arg_group_verbosity.add_argument( "--verbose", "-v", action="store_true" )
+#arg_group_verbosity.add_argument( "--quiet", "-q", action="store_true" )
+
+args = parser.parse_args()
+debug( 5, "args:", args )
+
+if not ( args.day or args.week or args.month or args.year ):
+	parser.error( "Must have at least one of --day/--week/--month/--year" )
+
+
+
+def older_than( path, period ):
+	dt = datetime.strptime( path[ -10 : ], "%Y-%m-%d" )
+	debug( "older_than:", path[ -10 : ], dt < datetime.now() - timedelta( days = PERIODS[ period ] ) )
+	return ( dt < datetime.now() - timedelta( days = PERIODS[ period ] ) )
+
+
+## save a new backup for a given period (day/week/month/year)..
+def backup( period ):
+	path_dest = os.path.join( os.path.expanduser( args.destination ),
+							  "%s.%s" % ( period, datetime.now().strftime( "%Y-%m-%d" ) ) )
+	debug( 1, "backup:", period, path_dest )
+	
+	if args.dry_run:
+		eprint( "DRY_RUN: backup:", period, path_dest )
+	else:
+		if args.hardlinks:
+			copytree( args.source, path_dest, copy_function = os.link )
+		else:
+			copytree( args.source, path_dest )
+
+
+## delete the proper amount of old backup directories and copy into a new one (if prudent)..
+def do_rotate( period ):
+	num_desired = vars( args ).get( period )
+	items = sorted( glob( "%s/%s.%s" % ( os.path.expanduser( args.destination ), period, GLOB_DATE ) ), reverse=True )
+	
+	debug( 2, period, items )
+	for path_item in items:
+		debug( 3, path_item )
+	
+	if items:
+		debug( 8, period, "oldest:", items[ -1 ] )
+		debug( 8, period, "newest:", items[ 0 ] )
+		
+		need_new = older_than( items[ 0 ], period ) # first: decide if we're going to make a new backup.
+		debug( 1, period, "need_new:", need_new, int( need_new ) )
+		
+		num_keep = num_desired - int( need_new ) # second: use knowledge of if we're going to do a backup to decide how many old backups to delete.
+		debug( 1, period, "num_keep:", num_keep )
+		
+		if len( items ) > num_keep:
+			for path_delete in items[ num_keep : ]:
+				if args.dry_run:
+					eprint( "DRY_RUN: delete:", path_delete )
+				else:
+					debug( 2, period, "delete:", path_delete )
+					rmtree( path_delete )
+			
+		if need_new:
+			backup( period )
+		
+	elif num_desired > 0:
+		backup( period )
+
+
+## main() ..
+if __name__ == "__main__":
+	for period in PERIODS:
+		do_rotate( period )
+
