@@ -3,7 +3,7 @@
 ## 2017-04-17 : tkooda : temp chroot jail using overlayfs workspace
 
 
-BASE="~/.cache/chroot-overlayfs"
+BASE=~/.cache/chroot-overlayfs
 
 ## prep workspace..
 mkdir -p "${BASE}" 2>/dev/null
