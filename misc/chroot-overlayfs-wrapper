@@ -1,0 +1,61 @@
+#!/bin/bash
+
+## 2017-04-17 : tkooda : temp chroot jail using overlayfs workspace
+
+
+BASE="~/.cache/chroot-overlayfs"
+
+## prep workspace..
+mkdir -p "${BASE}" 2>/dev/null
+cd "${BASE}" || { echo "ERROR: could not change do directory: ${BASE}"; exit 1; }
+mkdir -m0 lowerdir 2>/dev/null
+mkdir -p tmpdir/etc workdir chroot 2>/dev/null
+
+
+## seed tmpdir with usable data..
+echo "CHROOT" > tmpdir/etc/debian_chroot
+cat /etc/resolv.conf > tmpdir/etc/resolv.conf
+
+
+## outside of chroot, prep lowerdir with read-only bind mounts..
+for d in / /sys /run /disk*; do
+    [ -d "$d" ] || continue
+    mountpoint "${BASE}/lowerdir${d}" >/dev/null || mount -o ro --bind "${d}" "${BASE}/lowerdir${d}"
+done
+
+
+## do main overlay mount..
+mountpoint "${BASE}/chroot" >/dev/null \
+    || mount -t overlay -o "upperdir=${BASE}/tmpdir,lowerdir=${BASE}/lowerdir,workdir=${BASE}/workdir" overlayfs "${BASE}/chroot"
+
+
+## inside of chroot..
+chroot "${BASE}/chroot" sh -c 'mountpoint /proc/ >/dev/null || mount -t proc proc /proc'
+chroot "${BASE}/chroot" sh -c 'mountpoint /dev/pts >/dev/null || mount -t devpts devpts /dev/pts'
+
+
+## do actual chroot..
+chroot "${BASE}/chroot"  # in chroot until exit..
+
+
+## inside of chroot..
+chroot "${BASE}/chroot" umount /dev/pts
+chroot "${BASE}/chroot" umount /proc
+
+
+## outside of chroot, unmount all read-only mounts..
+mountpoint "${BASE}/chroot" >/dev/null && umount "${BASE}/chroot"
+for d in /sys /run /disk* / ; do
+    [ -d "$d" ] || continue
+    mountpoint "${BASE}/lowerdir${d}" >/dev/null && umount "${BASE}/lowerdir${d}"
+done
+
+
+echo "
+optionally, you can run this to clear the cache from that session:
+
+    rm -rf ${BASE}/tmpdir
+
+"
+
+trap "" EXIT HUP INT QUIT TERM
