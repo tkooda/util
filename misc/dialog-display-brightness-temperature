@@ -1,0 +1,164 @@
+#!/usr/bin/python3
+
+## 2020-03-29 : tkooda : interactive Gtk dialog to adjust monitor brightness / temperature
+
+## https://askubuntu.com/questions/1003101/how-to-use-xrandr-gamma-for-gnome-night-light-like-usage
+
+
+import gi
+gi.require_version('Gtk', '3.0') # squelch import warning
+
+from gi.repository import Gtk
+import sys
+import subprocess
+import re
+
+
+def get_brightness():
+    try:
+        stdout = subprocess.Popen( [ "/usr/bin/xrandr", "--verbose" ], stdout = subprocess.PIPE ).communicate()[0].decode("UTF-8")
+        m = re.search( "Brightness: ([0-9\.]+)", stdout )
+        return( float( m.group(1) ) )
+    except:
+        return 1.0
+
+
+def set_brightness_temperature( self, display = None ):
+    subprocess.call( [ "/usr/bin/redshift", "-O", str( int( self.last_temperature ) * 100 ), "-b", str( round( self.last_brightness, 1 ) ) ] )
+
+
+class MyWindow( Gtk.ApplicationWindow ):
+
+    def __init__( self, app ):
+
+        self.brightness_init = get_brightness()
+        self.brightness_min  = 0.1
+        self.brightness_step = 0.1
+        self.brightness_max  = 1.0
+        
+#        self.temperature_init = file_read( PATH_TEMPERATURE )
+        self.temperature_init = 65 # normal = 6500 K, common red = 1500 K
+        self.temperature_min  = 10  # 1000 K
+        self.temperature_step =  5
+        self.temperature_max  = 65  # 6500 K
+
+        self.last_brightness = self.brightness_init
+        self.last_temperature   = self.temperature_init
+        
+        Gtk.Window.__init__( self, title = "Screen Adjustment", application = app )
+        self.set_default_size( 400, 100 )
+        self.set_border_width( 5 )
+
+        # two adjustments (initial value, min value, max value,
+        # step increment - press cursor keys to see!,
+        # page increment - click around the handle to see!,
+        # page size - not used here)
+        adjust_brightness = Gtk.Adjustment( self.brightness_init, self.brightness_min, self.brightness_max, self.brightness_step, self.brightness_step, 0 )
+        adjust_temperature   = Gtk.Adjustment( self.temperature_init,   self.temperature_min,   self.temperature_max,   self.temperature_step,   self.temperature_step,   0 )
+
+
+        ## scales ..
+        self.scale_brightness = Gtk.Scale( orientation = Gtk.Orientation.HORIZONTAL, adjustment = adjust_brightness )
+        self.scale_brightness.connect( "value-changed", self.scale_moved_brightness )
+        self.scale_brightness.set_value( self.brightness_init )
+
+        self.scale_temperature = Gtk.Scale( orientation = Gtk.Orientation.HORIZONTAL, adjustment = adjust_temperature )
+#        self.scale_temperature.set_hexpand( True )
+        self.scale_temperature.connect( "value-changed", self.scale_moved_temperature )
+        self.scale_temperature.set_value( self.temperature_init )
+
+
+        ## labels ..
+        self.label_brightness = Gtk.Label()
+        self.label_brightness.set_text( "Brightness:" )
+
+        self.label_temperature = Gtk.Label()
+        self.label_temperature.set_text( "Temperature:" )
+
+
+        ## buttons ..
+        self.button_sleep = Gtk.Button.new_with_label( "Sleep" )
+        self.button_sleep.connect( "clicked", self.button_click_sleep )
+
+        self.button_normal = Gtk.Button.new_with_label( "Day" )
+        self.button_normal.connect( "clicked", self.button_click_normal )
+
+        self.button_night = Gtk.Button.new_with_label( "Night" )
+        self.button_night.connect( "clicked", self.button_click_night )
+
+        self.button_exit = Gtk.Button.new_with_label( "Exit" )
+        self.button_exit.connect( "clicked", self.button_click_exit )
+
+
+        ## grid ..
+        grid = Gtk.Grid()
+        grid.set_column_spacing( 10 )
+        grid.set_column_homogeneous( True )
+        grid.attach( self.label_brightness, 0, 0, 1, 1 )
+        grid.attach( self.label_temperature,   0, 1, 1, 1 )
+
+        grid.attach( self.scale_brightness, 1, 0, 3, 1 )
+        grid.attach( self.scale_temperature,   1, 1, 3, 1 )
+
+        grid.attach( self.button_sleep,  0, 3, 1, 1 )
+        grid.attach( self.button_night,  1, 3, 1, 1 )
+        grid.attach( self.button_normal, 2, 3, 1, 1 )
+        grid.attach( self.button_exit,   3, 3, 1, 1 )
+
+
+        self.add( grid )
+
+
+    # any signal from the scales is signaled to the label the text of which is changed
+    def scale_moved_brightness( self, event ):
+        self.last_brightness = float( self.scale_brightness.get_value() )
+        set_brightness_temperature( self, "eDP-1" )
+
+
+    def scale_moved_temperature( self, event ):
+        self.last_temperature = float( self.scale_temperature.get_value() )
+        set_brightness_temperature( self )
+
+
+    def button_click_sleep( self, event ):
+        call( [ "/usr/bin/xset", "dpms", "force", "off" ] )
+        sys.exit()
+
+
+    def button_click_normal( self, event ):
+        self.last_brightness = 1.0
+        self.last_temperature   = 65
+        self.scale_brightness.set_value( self.last_brightness )
+        self.scale_temperature.set_value( self.last_temperature )
+        set_brightness_temperature( self )
+
+
+    def button_click_night( self, event ):
+        self.last_brightness = 0.5
+        self.last_temperature   = 15
+        self.scale_brightness.set_value( self.last_brightness )
+        self.scale_temperature.set_value( self.last_temperature )
+        set_brightness_temperature( self )
+
+
+    def button_click_exit( self, event ):
+        sys.exit()
+
+
+
+class MyApplication( Gtk.Application ):
+
+    def __init__( self ):
+        Gtk.Application.__init__( self )
+
+    def do_activate( self ):
+        win = MyWindow( self )
+        win.show_all()
+
+    def do_startup( self ):
+        Gtk.Application.do_startup( self )
+
+
+app = MyApplication()
+exit_status = app.run( sys.argv )
+sys.exit( exit_status )
