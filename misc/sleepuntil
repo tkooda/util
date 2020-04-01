@@ -1,0 +1,12 @@
+#!/bin/bash
+
+## sleep until a specified date/time
+
+# e.g. `sleepuntil '2005-03-13 10:00' && ./myscript.sh`
+
+[ $# -eq 1 ] || { echo "invalid date"; exit 1; }
+
+secs=$(( `date -d"$1" '+%s'` - `date '+%s'` ))
+
+echo "sleeping $secs seconds until '$1'.."
+exec sleep "$secs"
