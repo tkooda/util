@@ -50,9 +50,8 @@ time.sleep( args.seconds ) ## give enough time for CPU percentages to be meaning
 print( "killing any '{}' child processes using more than {}% CPU..".format( args.command, args.percent ) )
 match_count = 0
 for pid, proc in child_processes.items():
-	name = proc.as_dict().get( "name", "" )
-	
 	try:
+		name = proc.as_dict().get( "name", "" )
 		percent = int( proc.cpu_percent( interval=0 ) )
 		
 		if percent <= args.percent:
