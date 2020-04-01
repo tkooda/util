@@ -1,6 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-## tkooda : 2012-02-24 : kill chromium-browser tabs that are using too much cpu and causing my laptop fan to be on, but not the actual browser parent chromium-browser window
+## 2012-02-24 : tkooda : kill chromium-browser tabs that are using too much cpu and causing my laptop fan to be on, but not the actual browser parent chromium-browser window
+## 2020-03-31 : tkooda : update for python3, and psutil >= 2.0.0
+
 
 import sys
 import psutil
@@ -10,54 +12,64 @@ import signal
 import argparse
 
 
-parser = argparse.ArgumentParser( description="kill chromium-browser tabs based on CPU usage" )
-parser.add_argument( "-n", help="dry run", action="store_false" )
-parser.add_argument( "-p", help="CPU percentage threshold (default: %(default)s)", default=90 )
-parser.add_argument( "-s", help="command starts with string (default: %(default)s)", default="chromium-browse" )
+parser = argparse.ArgumentParser( description = "kill chromium-browser tabs based on CPU usage" )
+parser.add_argument( "--percent", "-p", type=int, help="CPU percentage threshold.  (default: %(default)s)", default = 90 )
+parser.add_argument( "--seconds", "-s", type=int, help="Seconds to wait for calculating CPU usage.  (default: %(default)s)", default = 5 )
+parser.add_argument( "--command", "-c", help="command starts with string.  (default: %(default)s)", default = "chromium-browse" ) # NOTE: some processes are exactly 'chromium-browse' (no 'r')
+parser.add_argument( "--dry-run", "-n", help="Don't actually kill any processes.", action = "store_true" )
+parser.add_argument( "--verbose", "-v", help="List matching processes under threshold.", action = "store_true" )
 args = parser.parse_args()
 
 
+
+child_processes = {}
 all_processes = list( psutil.process_iter() )
 
-## seed cpu percent for all chromium processes..
-for proc in all_processes:
-	## ignore non-chromium processes..
-	if not proc.name.startswith( args.s ):
-		continue
-	
-	## skip chromium parent window processes (only kill tabs)..
-	if not proc.parent.name.startswith( args.s ):
-		continue
-	
-	proc.get_cpu_percent( interval=0 )
 
-
-time.sleep( 2 ) ## give enough time for CPU percentages to be meaningful
-
-match_count = 0
+## build list of child processes, seed cpu percent caculation for each..
+print( "searching for '{}' child processes using more than {}% CPU over {} seconds..".format( args.command, args.percent, args.seconds ) )
 for proc in all_processes:
 	try:
-		## ignore non-chromium processes..
-		if not proc.name.startswith( args.s ):
+		if not proc.as_dict().get( "name", "" ).startswith( args.command ):
+			continue # ignore non-matching processes
+		
+		if not proc.parent().as_dict().get( "name", "" ).startswith( args.command ):
+			continue # ignore chromium-browser parent windows (only kill children)
+		
+		child_processes[ proc.pid ] = proc
+		proc.cpu_percent( interval=0 ) # this data isn't accurate right away (with interval=0)  -give it time to calculate below
+	except:
+		# ignore pid=1, and any processes that dissapear while running
+		pass
+
+
+print( "sleeping {} seconds to caclulate CPU usages..".format( args.seconds ) )
+time.sleep( args.seconds ) ## give enough time for CPU percentages to be meaningful
+
+
+print( "killing any '{}' child processes using more than {}% CPU..".format( args.command, args.percent ) )
+match_count = 0
+for pid, proc in child_processes.items():
+	name = proc.as_dict().get( "name", "" )
+	
+	try:
+		percent = int( proc.cpu_percent( interval=0 ) )
+		
+		if percent <= args.percent:
+			if args.verbose:
+				print( "IGNORING: {} {}% {}".format( pid, percent, name ) )
 			continue
 		
-		## skip chromium parent window processes (only kill tabs)..
-		if not proc.parent.name.startswith( args.s ):
-			continue
-		
-		percent = proc.get_cpu_percent( interval=0 )
-		if percent < int( args.p ):
-			continue
-		
-		if args.n:
-			print "KILLING: %s %f (%s) (%s)" % ( proc.pid, percent, proc.name, proc.parent.name )
-			os.kill( int( proc.pid ), signal.SIGTERM )
+		if args.dry_run:
+			print( "WOULD_KILL_CHILD: {} {}% {}".format( pid, percent, name ) )
 		else:
-			print "IGNORED: %s %f (%s) (%s)" % ( proc.pid, percent, proc.name, proc.parent.name )
+			print( "KILLING_CHILD: {} {}% {}".format( pid, percent, name ) )
+			os.kill( int( pid ), signal.SIGTERM )
+		
 		match_count += 1
 		
 	except:
-		## ignore processes that might have ended during our sleep()
+		# silently ignore processes that might have ended during execution
 		pass
 
 sys.exit( match_count )
