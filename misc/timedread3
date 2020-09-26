@@ -1,0 +1,39 @@
+#!/usr/bin/python3
+
+## 2020-09-26 : tkooda : read from stdin with a timeout
+
+import os
+import sys
+import tty
+import termios
+import signal
+
+
+def handler( signum, frame ):
+	sys.exit()
+
+
+def main():
+	buf = ""
+	
+	signal.signal( signal.SIGALRM, handler ) # init timeout handler
+	
+	try:
+		fd = sys.stdin.fileno()
+		old_settings = termios.tcgetattr( fd )
+		
+		while True:
+			tty.setraw( sys.stdin.fileno() )
+			ch = sys.stdin.read( 1 ) # wait forever for first character
+			if ord( ch ) in [ 3, 10, 13 ]: # exit on CTRL-C, newline, or carriage_return
+				sys.exit()
+			buf += ch
+			signal.alarm( 1 ) # exit if no characters for 1 second (after first character)
+	finally:
+		if ord( ch ) != 3: 
+			sys.stdout.write( buf )
+		termios.tcsetattr( fd, termios.TCSADRAIN, old_settings )
+
+
+if __name__ == '__main__':
+	main()
