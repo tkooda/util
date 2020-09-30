@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+
+## 2018-11-26 : tkooda : convert date+time stamps on stdin
+
+import sys
+from argparse import ArgumentParser
+import re
+import datetime
+from dateutil.parser import parse as dateutil_parse
+from email.utils import format_datetime
+#from datetime import timezone # Python 3.3+ , https://stackoverflow.com/questions/4563272/convert-a-python-utc-datetime-to-a-local-datetime-using-only-python-standard-lib/13287083
+#from dateutil.tz import tzlocal
+#from datetime import datetime # datetime.datetime.now().astimezone().tzinfo
+
+import tai64n # `pip3 install https://github.com/tkooda/py-tai64` for python3 support
+import struct
+from binascii import b2a_hex
+
+
+PATTERNS = {
+	"tai64n": re.compile( r"^@?((?:[0-9a-f]{24})|(?:[0-9a-f]{16}))(.*)", re.IGNORECASE ),
+	"dateutil_parse": re.compile( r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)(.*)" ), # rfc3339, iso8601, etc.  TODO: add support for parsing rfc5322 and other formats supported by dateutil.parse()
+}
+
+
+def parse_args():
+	parser = ArgumentParser( description = "Convert date+time stamps found at start of each line on stdin." )
+	
+	arg_group_tz_presume = parser.add_mutually_exclusive_group()
+	arg_group_tz_presume.add_argument( "--presume-utc", action="store_true", help="Presume any missing timezone is UTC. (default)" ) # default
+	arg_group_tz_presume.add_argument( "--presume-local", action="store_true", help="Presume any missing timezone is local." )
+	
+	arg_group_to_format = parser.add_mutually_exclusive_group()
+	arg_group_to_format.add_argument( "--to-rfc3339", action="store_true", help="Output as RFC3339 timestamps. (2006-08-14 02:34:56-06:00) (default)" ) # default
+	arg_group_to_format.add_argument( "--to-rfc5322", action="store_true", help="Output as RFC5322 timestamps. (Mon, 14 Aug 2006 02:34:56 -0600)" )
+	arg_group_to_format.add_argument( "--to-iso8601", action="store_true", help="Output as ISO8601 timestamps. (2006-08-14T02:34:56-06:00)" )
+#	arg_group_to_format.add_argument( "--to-tai64n",  action="store_true", help="Output as TAI64(n) timestamps. (@400000005f73ba6f006a318c)" )
+	arg_group_to_format.add_argument( "--to-strftime", help="Output as specified strftime() format. ('%%Y-%%m-%%d %%H:%%M:%%S %%Z')" )
+	
+	arg_group_in_tz = parser.add_mutually_exclusive_group()
+	arg_group_in_tz.add_argument( "--in-local", "-l", action="store_true", help="Output timestamps in local timezone. (default)" ) # default
+	arg_group_in_tz.add_argument( "--in-utc", "-u", action="store_true", help="Output timestmps in UTC timezone." )
+	
+	parser.add_argument( "--microseconds", "-m", action="store_true", help="Include microseconds in output. (if format supports)" )
+	
+	return parser.parse_args()
+
+
+## take a datetime and return a timezone-aware datetime (with possible presumption of timezone from args)
+def timezone_from( args, dt ):
+	if dt.tzinfo:
+		return dt # datetime is already timezone-aware, no presumption needed
+	
+	if args.presume_utc:
+		return dt.replace( tzinfo = datetime.timezone.utc )
+	
+	# presume non-timezone-aware datetime was local timezone (default)
+	return dt.replace( tzinfo = datetime.datetime.now().astimezone().tzinfo )
+
+
+## take a timzone-aware datetime, convert it to the desired timezone
+def timezone_to( args, dt ):
+	if not dt.tzinfo:
+		print( "ERROR: datetime must be timezone-aware:", dt )
+		sys.exit( 2 )
+	
+	if args.in_utc: # convert timezone-aware datetime to UTC timezone
+#	if args.in_utc or args.to_tai64n: # convert timezone-aware datetime to UTC timezone
+		return dt.replace( tzinfo = datetime.timezone.utc ) # TODO: use astimezone()??
+	
+	# default: convert timezone-aware datetime to local timezone
+	return dt.astimezone( tz = datetime.datetime.now().astimezone().tzinfo )
+
+
+def format_dt( args, dt ): # convert timezone-aware datetime to a string in the desired format
+	if not dt.tzinfo:
+		print( "ERROR: datetime must be timezone-aware:", dt )
+		sys.exit( 3 )
+	
+	if not args.microseconds:
+#	if not args.microseconds and not args.to_tai64n:
+		dt = dt.replace( microsecond = 0 )
+	
+	if args.to_rfc5322:
+		return format_datetime( dt )
+	
+	elif args.to_iso8601:
+		return dt.isoformat()
+	
+#	elif args.to_tai64n:
+#		dt = dt.astimezone( tz = datetime.timezone.utc ) # make sure is UTC first
+#		dt = dt.replace( tzinfo = None ) # utc2tai() requires non-timezone-aware datetime, strip now-UTC timezone
+#		return utc_dt_to_tai64n( tai64n.utc2tai( dt ) )
+	
+	elif args.to_strftime:
+		return dt.strftime( args.to_strftime )
+	
+	## rfc 3339 is default
+	if dt.microsecond:
+		micro = ".{}".format( dt.microsecond )
+	else:
+		micro = ""
+	suffix = dt.strftime("%z")
+	suffix = suffix[:-2] + ":" + suffix[-2:]
+	return dt.strftime( "%Y-%m-%d %H:%M:%S{}{}".format( micro, suffix ) ) # TODO: add support for fractions of a second (secfrac from https://tools.ietf.org/html/rfc3339 )
+
+
+def find_match( line ):
+	for pattern_name, pattern_regex in PATTERNS.items():
+		match = pattern_regex.match( line )
+		if match:
+			return pattern_name, match
+	return None, None
+
+
+## from: https://github.com/itamarst/eliot/blob/master/eliot/tai64n.py
+def utc_dt_to_tai64n( dt ):
+	seconds = int( dt.timestamp() )
+	nanoseconds = int( ( dt.timestamp() - seconds ) * 1000000000 )
+	seconds = seconds + (2 ** 62) + 10  # last 10 are leap seconds
+	encoded = b2a_hex( struct.pack( b">QI", seconds, nanoseconds ) )
+	return "@" + encoded.decode("ascii")
+
+
+def main():
+	args = parse_args()
+	
+	for line in sys.stdin:
+		pattern_name, match = find_match( line )
+		if not match:
+			sys.stdout.write( "UNKNOWN_TIMESTAMP: " + line ) # could not find matching timestamp regex, print unmodified
+			sys.stdout.flush()
+			continue
+		
+		if pattern_name == "tai64n":
+			dt = tai64n.decode_tai64n( match.group(1) ).replace( tzinfo = datetime.timezone.utc ) # decode_tai64n() returns datetime in UTC but isn't timezone-aware, specify UTC timezone
+		elif pattern_name == "dateutil_parse":
+			dt = dateutil_parse( match.group(1) )
+		else:
+			continue
+		
+		sys.stdout.write( format_dt( args, timezone_to( args, timezone_from( args, dt ) ) ) + match.group( 2 ) + "\n" )
+		sys.stdout.flush()
+
+
+if __name__ == '__main__':
+	main()
+
