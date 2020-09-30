@@ -20,6 +20,7 @@ from binascii import b2a_hex
 PATTERNS = {
 	"tai64n": re.compile( r"^@?((?:[0-9a-f]{24})|(?:[0-9a-f]{16}))(.*)", re.IGNORECASE ),
 	"dateutil_parse": re.compile( r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)(.*)" ), # rfc3339, iso8601, etc.  TODO: add support for parsing rfc5322 and other formats supported by dateutil.parse()
+	"dateutil_parse_cleanup": re.compile( r"^(\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)(.*)" ),
 }
 
 
@@ -136,6 +137,8 @@ def main():
 			dt = tai64n.decode_tai64n( match.group(1) ).replace( tzinfo = datetime.timezone.utc ) # decode_tai64n() returns datetime in UTC but isn't timezone-aware, specify UTC timezone
 		elif pattern_name == "dateutil_parse":
 			dt = dateutil_parse( match.group(1) )
+		elif pattern_name == "dateutil_parse_cleanup":
+			dt = dateutil_parse( " ".join( match.group(1).split( "_" ) ) )
 		else:
 			continue
 		
