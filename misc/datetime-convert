@@ -19,8 +19,8 @@ from binascii import b2a_hex
 
 PATTERNS = {
 	"tai64n": re.compile( r"^@?((?:[0-9a-f]{24})|(?:[0-9a-f]{16}))(.*)", re.IGNORECASE ),
-	"dateutil_parse": re.compile( r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)(.*)" ), # rfc3339, iso8601, etc.  TODO: add support for parsing rfc5322 and other formats supported by dateutil.parse()
-	"dateutil_parse_cleanup": re.compile( r"^(\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)(.*)" ),
+	"dateutil_parse": re.compile( r"^\[?((?:\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)|(?:\w{3} [ 0-9]{2} \d{2}:\d{2}:\d{2}))\]?(.*)" ), # rfc3339, iso8601, etc.  TODO: add support for parsing rfc5322 and other formats supported by dateutil.parse()
+	"dateutil_parse_cleanup": re.compile( r"^\[?(\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:(?:[Zz])|(?:[\+|\-](?:[01]\d|2[0-3]))(?::?\d{2})?)?)\]?(.*)" ),
 }
 
 
