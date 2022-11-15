@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+
+## 2022-11-15 : tkooda : send message via Plivo from CLI
+
+import os
+import sys
+from configparser import ConfigParser
+from argparse import ArgumentParser
+from plivo import RestClient
+
+
+## parse config..
+config = ConfigParser()
+config.read( os.path.expanduser( os.getenv( "PLIVO_CONFIG", "~/.config/plivo.ini" ) ) )
+
+## parse args..
+parser = ArgumentParser( description = "send message using Plivo" )
+parser.add_argument( "--stdin", "-s", action = "store_true", help = "Read message from stdin" )
+parser.add_argument( "--to", "-t", required = True, help = "Phone number to send to (e.g. +12345678901)" )
+parser.add_argument( "message", nargs = "*", help = "Message passed as args" )
+args = vars( parser.parse_args() )
+
+## verify args..
+if not args.get( "stdin" ) and not args.get( "message" ):
+	sys.stderr.write( "ERROR: must provide message as arg or on stdin\n" )
+	parser.print_help()
+	sys.exit( 2 )
+
+## get body..
+if args.get( "stdin" ):
+	body = sys.stdin.read() # support carriage returns on stdin
+else:
+	body = "\n".join( args.get( "message" ) )
+
+## send message..
+with RestClient( auth_id = config.get( "auth_id" ),
+				 auth_token = config.get( "auth_token" ) ) as client:
+	response = client.messages.create(
+		src = config.get( "from" ),
+		dst = args.get( "to" ),
+		text = body,
+		)
+	
+	print( response.to_string() )
+
