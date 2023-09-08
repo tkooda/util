@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-## 2023-09-07 : tkooda : simple PushBullet.com API client in python3
+## 2023-09-07 : tkooda : simple Pushbullet.com API client in python3
 
 import os
 import sys
@@ -54,9 +54,9 @@ def parse_config():
 
 
 def parse_args():
-	parser = ArgumentParser( description = "PushBullet Client" )
+	parser = ArgumentParser( description = "Pushbullet Client" )
 	
-	parser.add_argument( "-a", "--access-token", help = "PushBullet Access Token" )
+	parser.add_argument( "-a", "--access-token", help = "Pushbullet Access Token" )
 	parser.add_argument( "-d", "--device", help = "Device nickname to send to.  (default: send to all devices)" )
 #	parser.add_argument( "-c", "--channel", help = "Send to a specific channel" )
 	parser.add_argument( "-t", "--title", help = "Title for the send" )
@@ -66,8 +66,8 @@ def parse_args():
 	parser.add_argument( "body", nargs = "?", help = "Message body" )
 	
 	if "shtab" in sys.modules:
-		shtab.add_argument_to( parser, [ "-s", "--print-completion" ] )
-
+		shtab.add_argument_to( parser, [ "-s", "--print-completion" ] ) # for generating bash autocompletion file
+	
 	args = parser.parse_args()
 	
 	## sanity checks..
