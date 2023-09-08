@@ -120,7 +120,7 @@ def populate_device_iden( config ):
 	
 	for device in devices:
 		if config.get( "device" ) == device.get( "nickname" ):
-			print( "matched", config, device )
+			debug( 5, "matched", config, device )
 			config[ "device_iden" ] = device.get( "iden" )
 			return config
 
