@@ -1,0 +1,16 @@
+#!/bin/bash
+
+## 2023-12-19 : tkooda : recursively replace spaces with dots..
+
+## usage:
+##  - will use '.' as search dir (unless specified as argv1 )
+
+find "${1:-.}" -depth -mindepth 1 -maxdepth 5 -iname '* *' \
+     |head -n1 \
+    | while IFS="\n" read f; do
+    item_name="${f##*/}"
+    item_parent="${f%/*}"
+    /bin/mv -v "$f" "${item_parent}/${item_name// /.}"
+    echo
+done
+
