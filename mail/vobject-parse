@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ## tkooda : 2013-10-11 : read vObject (vCard / vCalendar) from files on argv, print details on stdout
 
@@ -14,162 +14,162 @@ import pytz
 
 
 def human_readable_when( dt ):
-    s = ""
-    dt = dt.replace( tzinfo = None ) # more accurate would be to add tzinfo to now()
-    
-    diff = dt - datetime.datetime.now()
-    minutes, seconds = divmod( diff.days * 86400 + diff.seconds, 60 )
-    s += human_readable_seconds( minutes * 60 + seconds )
-    
-    if dt > datetime.datetime.now():
-        s += "from now"
-    else:
-        s += "ago"
-    
-    return s
+	s = ""
+	dt = dt.replace( tzinfo = None ) # more accurate would be to add tzinfo to now()
+	
+	diff = dt - datetime.datetime.now()
+	minutes, seconds = divmod( diff.days * 86400 + diff.seconds, 60 )
+	s += human_readable_seconds( minutes * 60 + seconds )
+	
+	if dt > datetime.datetime.now():
+		s += "from now"
+	else:
+		s += "ago"
+	
+	return s
 
 
 def human_readable_seconds( seconds ):
-    minutes = seconds / 60
-    h = ""
-    
-    if minutes / 60 / 24:
-        h += "%dd " % ( minutes / 60 / 24 )
-    
-    if ( minutes / 60 ) % 24:
-        h += "%dh " % ( ( minutes / 60 ) % 24 )
-    
-    if minutes % 60:
-        h += "%dm " % ( minutes % 60 )
-    
-    return h
+	minutes = seconds / 60
+	h = ""
+	
+	if minutes / 60 / 24:
+		h += "%dd " % ( minutes / 60 / 24 )
+	
+	if ( minutes / 60 ) % 24:
+		h += "%dh " % ( ( minutes / 60 ) % 24 )
+	
+	if minutes % 60:
+		h += "%dm " % ( minutes % 60 )
+	
+	return h
 
 
 def get_datetime( dt, when = False, convert_to_local_tz = True ):
-    localtz = dateutil.tz.tzlocal()
-    localtzname = localtz.tzname( dt )
-#    print "localtzname:", localtzname # DEBUG, is always CDT/CST
-    dt_now_tzaware = datetime.datetime.now( dateutil.tz.tzlocal() )
-    
-#    print "dt_now_tzaware:", dt_now_tzaware.tzname(), dt_now_tzaware.utcoffset().seconds, ( dt_now_tzaware.utcoffset().seconds / (60*60) ) - 24
-    
+	localtz = dateutil.tz.tzlocal()
+	localtzname = localtz.tzname( dt )
+#	print "localtzname:", localtzname # DEBUG, is always CDT/CST
+	dt_now_tzaware = datetime.datetime.now( dateutil.tz.tzlocal() )
+	
+#	print "dt_now_tzaware:", dt_now_tzaware.tzname(), dt_now_tzaware.utcoffset().seconds, ( dt_now_tzaware.utcoffset().seconds / (60*60) ) - 24
+	
 ## tkooda : 2013-11-19 : broken:
-#    print "DEBUG: incoming DT tzname:", dt.tzname()
-#    print "DEBUG: incoming DT utcoffset:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24
-    
-    
-    if convert_to_local_tz:
-#        print "DEBUG: convert_to_local_tz IS desired"
-        if dt.utcoffset().seconds != dt_now_tzaware.utcoffset().seconds: # optional TZ change if TZ name is different
-#            print "DEBUG: incoming TZ is NOT local"
-#            dt = dt.replace( tzinfo = pytz.utc ).astimezone( localtz ) ## FIXME: we're blindly presuming that the incoming timezone IS INDEED UTC!!!!!!
-#            print "DEBUG: changed from presumed UTC DT tzname to DT tzname:", dt.tzname()
-#            print "DEBUG: changed from presumed UTC DT utcoffset to DT utcoffset:", ( dt.utcoffset().seconds / (60*60) ) - 24
-#            print "DEBUG: incoming non-local TZ:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24, dt.tzname()
-            dt = dt.astimezone( localtz ) ## convert timezone aware dt to local time zone
-#            print "DEBUG: after converting to local TZ:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24, dt.tzname()
-#        else:
-#            print "DEBUG: NOT CHANGING, convert_to_local_tz IS desired, but it already IS the SAME TIME ZONE"
-#    else:
-#        print "DEBUG: convert_to_local_tz is NOT desired"
-    
-    try:
-        dt_str = dt.strftime("%A %m/%d/%Y @ %I:%M %p %z (%Z)")
+#	print "DEBUG: incoming DT tzname:", dt.tzname()
+#	print "DEBUG: incoming DT utcoffset:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24
+	
+	
+	if convert_to_local_tz:
+#		print "DEBUG: convert_to_local_tz IS desired"
+		if dt.utcoffset().seconds != dt_now_tzaware.utcoffset().seconds: # optional TZ change if TZ name is different
+#			print "DEBUG: incoming TZ is NOT local"
+#			dt = dt.replace( tzinfo = pytz.utc ).astimezone( localtz ) ## FIXME: we're blindly presuming that the incoming timezone IS INDEED UTC!!!!!!
+#			print "DEBUG: changed from presumed UTC DT tzname to DT tzname:", dt.tzname()
+#			print "DEBUG: changed from presumed UTC DT utcoffset to DT utcoffset:", ( dt.utcoffset().seconds / (60*60) ) - 24
+#			print "DEBUG: incoming non-local TZ:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24, dt.tzname()
+			dt = dt.astimezone( localtz ) ## convert timezone aware dt to local time zone
+#			print "DEBUG: after converting to local TZ:", dt.utcoffset().seconds, ( dt.utcoffset().seconds / (60*60) ) - 24, dt.tzname()
+#		else:
+#			print "DEBUG: NOT CHANGING, convert_to_local_tz IS desired, but it already IS the SAME TIME ZONE"
+#	else:
+#		print "DEBUG: convert_to_local_tz is NOT desired"
+	
+	try:
+		dt_str = dt.strftime("%A %m/%d/%Y @ %I:%M %p %z (%Z)")
 ## tkooda : 2015-07-10 : date format from Microsoft Exchange Server 2010
-    except AttributeError:
-        dt_str = dt.strftime("%Y-%m-%d %H:%M:%S%z")
-        pass
-    
-    if when:
-        dt_str += "  (%s)" % human_readable_when( dt )
-    
-    return dt_str
+	except AttributeError:
+		dt_str = dt.strftime("%Y-%m-%d %H:%M:%S%z")
+		pass
+	
+	if when:
+		dt_str += "  (%s)" % human_readable_when( dt )
+	
+	return dt_str
 
 
 def get_email( obj ):
-#    return '"%s" <%s> (RSVP = %s)' % ( obj.params.get( "CN", "" )[0], obj.value, obj.params.get( "RSVP", "?" )[0] )
-#    return '"%s" <%s>' % ( obj.params.get( "CN", "" )[0], obj.value ) # occasional: "IndexError: string index out of range"
-    s = None
-    try:
-        s = '"%s" ' % obj.params.get( "CN", "" )[0]
-    except:
-        pass
-    try:
-        s += '<%s>' % obj.value
-    except:
-        pass
-    return s
+#	return '"%s" <%s> (RSVP = %s)' % ( obj.params.get( "CN", "" )[0], obj.value, obj.params.get( "RSVP", "?" )[0] )
+#	return '"%s" <%s>' % ( obj.params.get( "CN", "" )[0], obj.value ) # occasional: "IndexError: string index out of range"
+	s = None
+	try:
+		s = '"%s" ' % obj.params.get( "CN", "" )[0]
+	except:
+		pass
+	try:
+		s += '<%s>' % obj.value
+	except:
+		pass
+	return s
 
 
 
 for f in sys.argv[ 1: ]:
-    fd = open( f, "rb" )
-    s = fd.read()
-    fd.close()
-    
-#    localtz = dateutil.tz.tzlocal()
-#    localtzname = localtz.tzname( dt )
-    
-    for component in vobject.readComponents( s ):
-        print "Now:  ", get_datetime( datetime.datetime.now( dateutil.tz.tzlocal() ) )
-        
-## tkooda : 2014-08-21 : check this later...
-        if component.vevent.rruleset:
-            now = datetime.datetime.now().replace( tzinfo = pytz.utc )
-            for i in list( component.vevent.rruleset ): ## FIXME: slow!
-                i = i.replace( tzinfo = pytz.utc ) ## FIXME: use dynamic timezone!
-                if i > now:
-                    print "Next: ", get_datetime( i, when = True )
-                    break
-        
-#        print "OrigStr:", component.vevent.dtstart.value
-        try:
-            print "Orig:  %s  (%s)" % ( get_datetime( component.vevent.dtstart.value, convert_to_local_tz = False ),
-                                        component.vevent.dtstart.value )
-        except:
-            print "Orig: ERROR:", component.vevent.dtstart.value
-            pass
-        
-#        print
-        print "Start:", get_datetime( component.vevent.dtstart.value, when = True )
-        print "End:  ", get_datetime( component.vevent.dtend.value )
-        
-        duration = component.vevent.dtend.value - component.vevent.dtstart.value
-        print "Duration:", human_readable_seconds( duration.seconds )
-#        print "Created:", get_datetime( component.vevent.created.value )
-        print
-        
-        print "Organizer:", get_email( component.vevent.organizer )
-#        print "Attendee: #1", get_email( component.vevent.attendee ) # FIXME: print all attendees
-        print
-        
-#        print "Priority:", component.vevent.priority.value
-        print "Summary:", component.vevent.summary.value.encode( "ascii", "ignore" )
-        try:
-            print "Description:", component.vevent.description.value.encode( "ascii", "ignore" )
-        except:
-            print "DESCRIPTION_ERROR"
-            pass
-        print
-        
-        if component.vevent.rruleset:
-            print "Reoccuring:"
-            for i in list( component.vevent.rruleset )[ :10 ]:
-                print get_datetime( i )
-            if len( list( component.vevent.rruleset ) ) > 10:
-                print "( plus %d more )" % ( len( list( component.vevent.rruleset ) ) - 10 )
-        print
-	print
-        
-        print "[ COMPONENT: ]"
-        try:
-            del component.vevent.x_alt_desc # delete any optional X-Alt-Desc (e.g. HTML)
-        except:
-            pass
-        component.prettyPrint()
-        print
-        print
+	fd = open( f, "rb" )
+	s = fd.read()
+	fd.close()
 	
-#DEBUG        print "[ RAW: ]"
-#DEBUG        print s
-        print
+#	localtz = dateutil.tz.tzlocal()
+#	localtzname = localtz.tzname( dt )
+	
+	for component in vobject.readComponents( s ):
+		print( "Now:  ", get_datetime( datetime.datetime.now( dateutil.tz.tzlocal() ) ) )
+		
+## tkooda : 2014-08-21 : check this later...
+		if component.vevent.rruleset:
+			now = datetime.datetime.now().replace( tzinfo = pytz.utc )
+			for i in list( component.vevent.rruleset ): ## FIXME: slow!
+				i = i.replace( tzinfo = pytz.utc ) ## FIXME: use dynamic timezone!
+				if i > now:
+					print( "Next: ", get_datetime( i, when = True ) )
+					break
+		
+#		print "OrigStr:", component.vevent.dtstart.value
+		try:
+			print( "Orig:  %s  (%s)" % ( get_datetime( component.vevent.dtstart.value, convert_to_local_tz = False ),
+										component.vevent.dtstart.value ) )
+		except:
+			print( "Orig: ERROR:", component.vevent.dtstart.value )
+			pass
+		
+#		print
+		print( "Start:", get_datetime( component.vevent.dtstart.value, when = True ) )
+		print( "End:  ", get_datetime( component.vevent.dtend.value ) )
+		
+		duration = component.vevent.dtend.value - component.vevent.dtstart.value
+		print( "Duration:", human_readable_seconds( duration.seconds ) )
+#		print "Created:", get_datetime( component.vevent.created.value )
+		print()
+		
+		print( "Organizer:", get_email( component.vevent.organizer ) )
+#		print "Attendee: #1", get_email( component.vevent.attendee ) # FIXME: print all attendees
+		print()
+		
+#		print "Priority:", component.vevent.priority.value
+		print( "Summary:", component.vevent.summary.value.encode( "ascii", "ignore" ) )
+		try:
+			print( "Description:", component.vevent.description.value.encode( "ascii", "ignore" ) )
+		except:
+			print( "DESCRIPTION_ERROR" )
+			pass
+		print()
+		
+		if component.vevent.rruleset:
+			print( "Reoccuring:" )
+			for i in list( component.vevent.rruleset )[ :10 ]:
+				print( get_datetime( i ) )
+			if len( list( component.vevent.rruleset ) ) > 10:
+				print( "( plus %d more )" % ( len( list( component.vevent.rruleset ) ) - 10 ) )
+		print()
+		print()
+		
+		print( "[ COMPONENT: ]" )
+		try:
+			del component.vevent.x_alt_desc # delete any optional X-Alt-Desc (e.g. HTML)
+		except:
+			pass
+		component.prettyPrint()
+		print()
+		print()
+	
+#DEBUG		print "[ RAW: ]"
+#DEBUG		print s
+		print()
