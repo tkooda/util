@@ -104,7 +104,7 @@ def get_email( obj ):
 
 for f in sys.argv[ 1: ]:
 	fd = open( f, "rb" )
-	s = fd.read()
+	s = fd.read().decode( "utf-8" )
 	fd.close()
 	
 #	localtz = dateutil.tz.tzlocal()
@@ -138,15 +138,24 @@ for f in sys.argv[ 1: ]:
 		print( "Duration:", human_readable_seconds( duration.seconds ) )
 #		print "Created:", get_datetime( component.vevent.created.value )
 		print()
-		
-		print( "Organizer:", get_email( component.vevent.organizer ) )
-#		print "Attendee: #1", get_email( component.vevent.attendee ) # FIXME: print all attendees
-		print()
+
+		try:
+			print( "Organizer:", get_email( component.vevent.organizer ) )
+#			print "Attendee: #1", get_email( component.vevent.attendee ) # FIXME: print all attendees
+			print()
+		except:
+			pass
 		
 #		print "Priority:", component.vevent.priority.value
-		print( "Summary:", component.vevent.summary.value.encode( "ascii", "ignore" ) )
 		try:
-			print( "Description:", component.vevent.description.value.encode( "ascii", "ignore" ) )
+#			print( "Summary:", component.vevent.summary.value.encode( "ascii", "ignore" ) )
+			print( "Summary:", component.vevent.summary.value )
+		except:
+			pass
+		
+		try:
+#			print( "Description:", component.vevent.description.value.encode( "ascii", "ignore" ) )
+			print( "Description:", component.vevent.description.value )
 		except:
 			print( "DESCRIPTION_ERROR" )
 			pass
@@ -161,15 +170,15 @@ for f in sys.argv[ 1: ]:
 		print()
 		print()
 		
-		print( "[ COMPONENT: ]" )
-		try:
-			del component.vevent.x_alt_desc # delete any optional X-Alt-Desc (e.g. HTML)
-		except:
-			pass
-		component.prettyPrint()
-		print()
-		print()
-	
+#		print( "[ COMPONENT: ]" )
+#		try:
+#			del component.vevent.x_alt_desc # delete any optional X-Alt-Desc (e.g. HTML)
+#		except:
+#			pass
+#		component.prettyPrint()
+#		print()
+#		print()
+#	
 #DEBUG		print "[ RAW: ]"
 #DEBUG		print s
-		print()
+#		print()
