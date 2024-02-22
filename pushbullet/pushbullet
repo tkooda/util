@@ -1,0 +1,171 @@
+#!/usr/bin/python3
+
+## 2023-09-07 : tkooda : simple Pushbullet.com API client in python3
+
+import os
+import sys
+from configparser import ConfigParser
+from argparse import ArgumentParser
+from requests import get, post
+
+try:
+	# for bash completion:  `pushbullet -s bash > ~/.bash_completion.d/pushbullet`
+	import shtab # pip3 install shtab
+except:
+	pass
+
+PATH_CONFIG = "~/.config/pushbullet.ini" # or use --access-token arg
+# e.g.:
+#  [DEFAULT]
+#  access_token = <access_token>
+
+
+def eprint( *args, **kwargs ):
+	exit = kwargs.pop( "exit", None )  # optional exit=N arg
+	sys.stdout.flush()
+	sys.stderr.flush()
+	print( *args, file=sys.stderr, **kwargs )
+	sys.stdout.flush()
+	sys.stderr.flush()
+	if exit:
+		sys.exit( exit )
+
+
+def debug( level, *args, **kwargs ):
+	try:
+		if int( os.getenv( "DEBUG" ) ) >= level:
+			eprint( "DEBUG(%d):" % level, *args, **kwargs )
+	except SystemExit as exit:  # support exit=N within try in in debug()
+		sys.exit( exit )
+	except:
+		pass
+
+
+def bail( s ):
+	eprint( "ERROR: {}".format( s ), exit = 1 )
+
+
+def parse_config():
+	config = ConfigParser()
+	
+	config.read( os.path.expanduser( os.getenv( "PUSHBULLET_CONFIG", PATH_CONFIG ) ) )
+	
+	return config
+
+
+def parse_args():
+	parser = ArgumentParser( description = "Pushbullet Client" )
+	
+	parser.add_argument( "-a", "--access-token", help = "Pushbullet Access Token" )
+	parser.add_argument( "-d", "--device", help = "Device nickname to send to.  (default: send to all devices)" )
+#	parser.add_argument( "-c", "--channel", help = "Send to a specific channel" )
+	parser.add_argument( "-t", "--title", help = "Title for the send" )
+	parser.add_argument( "-u", "--url", help = "URL to send" )
+#	parser.add_argument( "-f", "--file", help = "Path to file to send" )
+	parser.add_argument( "-l", "--list-devices", action = "store_true", help = "List devices with their identities" )
+	parser.add_argument( "body", nargs = "?", help = "Message body" )
+	
+	if "shtab" in sys.modules:
+		shtab.add_argument_to( parser, [ "-s", "--print-completion" ] ) # for generating bash autocompletion file
+	
+	args = parser.parse_args()
+	
+	## sanity checks..
+	if args.list_devices:
+		if args.url or args.body:
+			bail( "cannot use --list-devices with --url or body" )
+	else:
+		if not args.url and not args.body:
+			bail( "either --url or body is required" )
+		elif args.url and args.body:
+			bail( "cannot use both --url and body together" )
+	
+	return vars( args )
+
+
+def get_config():
+	args = parse_args()
+	
+	if not args.get( "access_token" ):
+		
+		try: # attempt to get missing access_token from ini config file..
+			config = parse_config()
+			args[ "access_token" ] = config.get( "DEFAULT", "access_token" )
+		except:
+			bail( "access_token not provided via args or {}".format( PATH_CONFIG ) )
+	
+	return args
+
+
+def get_devices( config ):
+	response = get( "https://api.pushbullet.com/v2/devices",
+					headers = { "Access-Token": config.get( "access_token" ) },
+					)
+	
+	debug( 4, response )
+	data = response.json()
+	debug( 7, data )
+	
+	return [ device for device in data.get( "devices", [] ) if device.get( "active" ) and device.get( "pushable" ) ]
+
+
+def list_devices( config ):
+	for device in get_devices( config ):
+		debug( 5, device )
+		print( "DEVICE: '{nickname}'  ({kind} / {manufacturer} / {model})".format( **device ) )
+
+
+def populate_device_iden( config ):
+	devices = get_devices( config )
+	
+	for device in devices:
+		if config.get( "device" ) == device.get( "nickname" ):
+			debug( 5, "matched", config, device )
+			config[ "device_iden" ] = device.get( "iden" )
+			return config
+
+	if config.get( "device" ) and not config.get( "device_iden" ):
+		bail( "no matching device found: '{}'".format( config.get( "device" ) ) )
+	
+	return config
+
+
+def send_push( config, push_type = "note" ):
+	
+	if config.get( "device" ):
+		config = populate_device_iden( config )
+	
+	data = { "type": push_type }
+	for item in [ "title", "body", "url", "device_iden" ]:
+		if config.get( item ):
+			data[ item ] = config.get( item )
+	
+	response = post( "https://api.pushbullet.com/v2/pushes",
+					 json = data,
+					 headers = { "Access-Token": config.get( "access_token" ) },
+					 )
+	
+	if response.status_code == 200:
+		print( "success" )
+		sys.exit( 0 )
+	
+	eprint( "ERROR:", response.status_code, response.text )
+
+
+if __name__ == "__main__":
+	config = get_config()
+	
+	debug( 1, "config:", config )
+	
+	if config.get( "list_devices" ):
+		list_devices( config )
+		
+	elif config.get( "url" ):
+		send_push( config, push_type = "link" )
+		
+	elif config.get( "body" ):
+		send_push( config )
+		
+	else:
+		bail( "invalid args" )
+	

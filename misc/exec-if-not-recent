@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ## 2017-04-09 : tkooda : only execute sub-command if enough time has elapsed since the last execution
 
