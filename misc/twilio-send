@@ -1,8 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ## tkooda : 2016-01-12 : command to send SMS via google voice from the CLI
 ## tkooda : 2017-10-17 : read message from stdin if not provided as 2nd arg
 ## tkooda : 2017-11-13 : switch to ConfigParser, ArgumentParser, and add support for MMS
+## 2020-04-25 : tkooda : update to python3
 
 from __future__ import print_function
 
