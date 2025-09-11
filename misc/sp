@@ -10,6 +10,5 @@ find "${1:-.}" -depth -mindepth 1 -maxdepth 5 -iname '* *' \
     item_name="${f##*/}"
     item_parent="${f%/*}"
     /bin/mv -v "$f" "${item_parent}/${item_name// /.}"
-    echo
 done
 
