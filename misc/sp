@@ -6,7 +6,6 @@
 ##  - will use '.' as search dir (unless specified as argv1 )
 
 find "${1:-.}" -depth -mindepth 1 -maxdepth 5 -iname '* *' \
-     |head -n1 \
     | while IFS="\n" read f; do
     item_name="${f##*/}"
     item_parent="${f%/*}"
