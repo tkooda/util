@@ -2,6 +2,7 @@
 
 ## tkooda : 2008-05-15 : read data from stdin, print it as soon as we haven't gotten any more data from stdin for $TIMEOUT seconds (for use in bash scripts that need input (e.g. a url dragged from a browser window), that dosn't have a carrige return at the end of it
 ## tkooda : 2014-08-12 : modify exception for Ubuntu 14.04.1
+## 2025-11-29 : tkooda : convert to python3
 
 
 import os
